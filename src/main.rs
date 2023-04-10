@@ -94,7 +94,8 @@ impl Z80_io for IO {
                 0x0000 => 0, // todo: Sofia and Brain Breaker need this?
                 0x0e03 => self.cart.read_byte(),
                 0x0ff8 => self.fdc.status(),
-                0x0ffa => self.fdc.sector,
+                0x0ffa => 0,
+                // 0x0ffa => self.fdc.sector,
                 0x0ffb => self.fdc.data,
                 0x1900 => {
                     if self.sub_obf != 0 {
@@ -179,8 +180,7 @@ impl Z80_io for IO {
                 0x3800..=0x3fff => self.video.tvram[addr as usize - 0x3800],
                 0x4000..=0xffff => self.video.get_bitmap_data((addr - 0x4000) as usize),
                 _ => {
-                    // panic!("Implement port in addr {:x}", addr);
-                    0
+                    panic!("Implement port in addr {:x}", addr);
                 }
             }
         }
@@ -302,9 +302,10 @@ fn main() -> Result<(), Error> {
     let ipl = get_file_as_byte_vec(&String::from("res/ipl.x1"));
     // let ank = get_file_as_byte_vec(&String::from("res/ank.fnt")); // 8x16
     let fnt = get_file_as_byte_vec(&String::from("res/fnt0808.x1")); // 8x8
-    // let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
-    let cart_rom = vec![0];
-    let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
+    let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
+    // let cart_rom = vec![0];
+    // let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
+    let floppy_data = vec![0; 327680];
 
     let mut cpu = Z80::new(IO {
         mem: [0; 0x10000],
@@ -377,6 +378,8 @@ fn main() -> Result<(), Error> {
     let mut disassembler = Disassembler::new();
     let mut watchpoints = Watchpoints::new();
 
+    let mut cyc = 0u32;
+
     event_loop.run(move |event, _, control_flow| {
         // For everything else, for let winit_input_helper collect events to build its state.
         // It returns `true` when it is time to update our game state and request a redraw.
@@ -417,13 +420,7 @@ fn main() -> Result<(), Error> {
                 framework.resize(size.width, size.height);
             }
 
-            let mut cyc = 0u32;
-            cpu.io.video.cycles = 0;
-            while cyc < CPU_CLOCK / 60 {
-                if paused {
-                    break;
-                }
-
+            while !paused && cyc < CPU_CLOCK / 60 {
                 let added = cpu.step();
                 cyc += added;
                 cpu.io.video.cycles += added;
@@ -434,6 +431,12 @@ fn main() -> Result<(), Error> {
                 }
             }
 
+            if cyc >= CPU_CLOCK / 60 {
+                cyc -= CPU_CLOCK / 60;
+                cpu.io.video.cycles -= CPU_CLOCK / 60;
+            }
+
+            cpu.io.video.display(pixels.frame_mut());
             window.request_redraw();
         }
 
@@ -443,8 +446,6 @@ fn main() -> Result<(), Error> {
                 framework.handle_event(&event);
             }
             Event::RedrawRequested(_) => {
-                cpu.io.video.display(pixels.frame_mut());
-
                 // Prepare egui
                 disassembler.prepare(&mut cpu);
                 framework.prepare(

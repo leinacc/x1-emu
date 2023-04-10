@@ -258,10 +258,23 @@ impl Video {
         }
     }
 
-    pub fn display(&mut self, canvas: &mut [u8]) {
-        let xsize = self.hd6845s.horiz_disp;
-        let ysize = self.hd6845s.vert_disp;
+    fn priority_mixer_pri(&self, color: u8) -> u8 {
+        let mut pri_i = 0u8;
+        let mut pri_mask_calc = 1u8;
 
+        while pri_i < 7 {
+            if (color & 7) == pri_i {
+                break;
+            }
+    
+            pri_i += 1;
+            pri_mask_calc <<= 1;
+        }
+    
+        pri_mask_calc
+    }
+
+    fn draw_gfxbitmap(&mut self, canvas: &mut [u8], xsize: u8, ysize: u8, pri: u8) {
         // bitmap
         for row in 0..ysize {
             for col in 0..xsize {
@@ -273,7 +286,6 @@ impl Video {
                             + (self.hd6845s.disp_start_addr & 0x3f00))
                             & 0x7ff;
                         gfx_offset += yi * 0x800;
-                        // X1Turbo only: plane variable, for double buffering
                         let pen_b =
                             (self.bitmapdata0[gfx_offset as usize + 0x0000] >> (7 - xi)) & 1;
                         let pen_r =
@@ -285,12 +297,10 @@ impl Video {
 
                         // checkout priority mixing
                         // TODO: due of this we loop twice, it should be handled at mixing time instead.
-                        // pri_mask_val = priority_mixer_pri(color);
-                        // if(pri_mask_val & pri) continue;
-
-                        // X1Turbo only: the black clip register overrides the pen with black if it's hit
-                        // if((color == 8 && m_scrn_reg.blackclip & 0x10) || (color == 9 && m_scrn_reg.blackclip & 0x20))
-                        //     color = 0;
+                        let pri_mask_val = self.priority_mixer_pri(color);
+                        if (pri_mask_val & pri) != 0 {
+                            continue;
+                        }
 
                         // apply partial update
                         // TODO: not working properly, see top of file
@@ -317,7 +327,9 @@ impl Video {
                 }
             }
         }
+    }
 
+    fn draw_fgtilemap(&mut self, canvas: &mut [u8], xsize: u8, ysize: u8) {
         // tile row and tile col
         for row in 0..ysize {
             for col in 0..xsize {
@@ -366,6 +378,15 @@ impl Video {
                 );
             }
         }
+    }
+
+    pub fn display(&mut self, canvas: &mut [u8]) {
+        let xsize = self.hd6845s.horiz_disp;
+        let ysize = self.hd6845s.vert_disp;
+
+        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri);
+        self.draw_fgtilemap(canvas, xsize, ysize);
+        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri^0xff);
     }
 
     pub fn get_bitmap_data(&self, addr: usize) -> u8 {
@@ -494,6 +515,9 @@ impl Video {
                 ));
                 ui.image(texture, texture.size_vec2());
                 ui.label(format!("Bitmap 0 src: ${:04x}", self.hd6845s.disp_start_addr & 0x3f00));
+                ui.label(format!("Horiz disp: {:02x}", self.hd6845s.horiz_disp));
+                ui.label(format!("Vert disp: {:02x}", self.hd6845s.vert_disp));
+                ui.label(format!("Pri: {:02x}", self.pri));
             });
 
         egui::Window::new("PCG ROM Viewer")
