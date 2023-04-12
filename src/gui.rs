@@ -33,6 +33,7 @@ struct Gui {
     breakpoints_open: bool,
     disassembler_open: bool,
     watchpoints_open: bool,
+    controls_open: bool,
 }
 
 impl Framework {
@@ -176,6 +177,7 @@ impl Gui {
             breakpoints_open: true,
             disassembler_open: true,
             watchpoints_open: true,
+            controls_open: true,
         }
     }
 
@@ -208,6 +210,10 @@ impl Gui {
             };
             if ui.button("Watchpoints").clicked() {
                 self.watchpoints_open = true;
+                ui.close_menu();
+            };
+            if ui.button("Controls").clicked() {
+                self.controls_open = true;
                 ui.close_menu();
             };
         });
@@ -244,6 +250,17 @@ impl Gui {
             .open(&mut self.watchpoints_open)
             .show(ctx, |ui| {
                 watchpoints.display(ui);
+            });
+
+        egui::Window::new("Controls")
+            .open(&mut self.watchpoints_open)
+            .show(ctx, |ui| {
+                if ui.button("Pause").clicked() {
+                    cpu.io.pause_pressed = true;
+                }
+                if ui.button("Step").clicked() {
+                    cpu.io.step_pressed = true;
+                }
             });
     }
 }

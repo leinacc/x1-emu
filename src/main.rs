@@ -2,8 +2,11 @@ use crate::cart::Cart;
 use crate::fdc::FDC;
 use crate::gui::Framework;
 use crate::i8255::I8255;
+use crate::keyboard::Keyboard;
 use crate::video::Video;
 use crate::z80::{Z80_io, Z80};
+
+use egui::Key;
 use egui_winit::winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -29,6 +32,7 @@ mod disassembler;
 mod fdc;
 mod gui;
 mod i8255;
+mod keyboard;
 mod old_z80;
 mod video;
 mod watchpoints;
@@ -51,9 +55,15 @@ pub struct IO {
     sub_val_ptr: usize,
     key_irq_vector: u8,
 
+    keyboard: Keyboard,
+    last_key_press: u8,
+
     last_addr: u16,
     last_is_read: bool,
     last_is_mem: bool,
+    paused: bool,
+    pub pause_pressed: bool,
+    pub step_pressed: bool,
 }
 
 impl Z80_io for IO {
@@ -94,8 +104,7 @@ impl Z80_io for IO {
                 0x0000 => 0, // todo: Sofia and Brain Breaker need this?
                 0x0e03 => self.cart.read_byte(),
                 0x0ff8 => self.fdc.status(),
-                0x0ffa => 0,
-                // 0x0ffa => self.fdc.sector,
+                0x0ffa => self.fdc.get_sector(),
                 0x0ffb => self.fdc.data,
                 0x1900 => {
                     if self.sub_obf != 0 {
@@ -174,6 +183,10 @@ impl Z80_io for IO {
                     // println!("Read from port 1b00");
                     0
                 }
+                0x1ff0 => {
+                    // todo: is for x1 turbo
+                    0xff
+                }
                 0x2000..=0x27ff => self.video.avram[addr as usize - 0x2000],
                 0x2800..=0x2fff => self.video.avram[addr as usize - 0x2800],
                 0x3000..=0x37ff => self.video.tvram[addr as usize - 0x3000],
@@ -216,33 +229,46 @@ impl Z80_io for IO {
                         self.key_irq_vector = value;
                         data = 0;
                     }
+                    if self.sub_cmd == 0xe7 {
+                        println!("Setting TV ctrl: {:02x}", data);
+                    }
                     if self.sub_cmd == 0xe9 {
-                        // todo: cmt command
+                        panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                    }
+                    if (data & 0xf0) == 0xd0 {
+                        panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
                     }
                     match data {
-                        0xe4 => {}
+                        0xe3 => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xe4 => {
+                            // Key IRQ vector set above
+                        },
+                        0xe5 => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
                         0xe6 => {
-                            // todo: keyboard
-                            self.sub_vals[0] = 0xff;
-                            self.sub_vals[1] = 0xff;
+                            self.sub_vals[1] = self.keyboard.check_press() as u8;
+                            self.sub_vals[0] = self.keyboard.check_shift();
                             self.sub_cmd_len = 2;
                         }
-                        0xe7 => {} // todo: tv control
+                        0xe7 => {
+                            // todo: unknown TV ctrl
+                        },
                         0xe8 => {
+                            // todo: TV ctrl read-out
                             self.sub_vals[0] = self.sub_cmd;
                             self.sub_cmd_len = 1;
                         }
-                        0xe9 => {}
+                        0xe9 => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xea => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
                         0xeb => {
                             // todo: cmt
                             self.sub_vals[0] = 5;
                             self.sub_cmd_len = 1;
                         }
-                        0x00 => {} // todo: frig to allow 0xe4
-                        0x04 => {} // todo: frig for 0xe7 cmd
-                        _ => {
-                            panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
-                        }
+                        0xec => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xed => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xee => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xef => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        _ => (),
                     }
                     self.sub_cmd = data;
 
@@ -276,6 +302,9 @@ impl Z80_io for IO {
                 }
                 0x1d00..=0x1dff => self.ipl_loaded = true,
                 0x1e00 => self.ipl_loaded = false,
+                0x1fd0 => {
+                    // todo: is x1 turbo
+                }
                 0x2000..=0x27ff => self.video.avram[addr as usize - 0x2000] = value,
                 0x2800..=0x2fff => self.video.avram[addr as usize - 0x2800] = value,
                 0x3000..=0x37ff => self.video.tvram[addr as usize - 0x3000] = value,
@@ -302,10 +331,10 @@ fn main() -> Result<(), Error> {
     let ipl = get_file_as_byte_vec(&String::from("res/ipl.x1"));
     // let ank = get_file_as_byte_vec(&String::from("res/ank.fnt")); // 8x16
     let fnt = get_file_as_byte_vec(&String::from("res/fnt0808.x1")); // 8x8
-    let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
-    // let cart_rom = vec![0];
-    // let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
-    let floppy_data = vec![0; 327680];
+    // let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
+    let cart_rom = vec![0];
+    let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
+    // let floppy_data = vec![0; 327680];
 
     let mut cpu = Z80::new(IO {
         mem: [0; 0x10000],
@@ -317,7 +346,7 @@ fn main() -> Result<(), Error> {
             fnt,
         ),
         i8255: I8255::new(),
-        fdc: FDC::new(floppy_data.try_into().ok().unwrap()),
+        fdc: FDC::new(floppy_data.try_into().ok().unwrap(), true),
         cart: Cart::new(cart_rom),
         sub_cmd: 0,
         sub_cmd_len: 0,
@@ -327,9 +356,15 @@ fn main() -> Result<(), Error> {
         sub_val_ptr: 0,
         key_irq_vector: 0,
 
+        keyboard: Keyboard::new(),
+        last_key_press: 0,
+
         last_addr: 0xffff,
         last_is_mem: true,
         last_is_read: true,
+        paused: true,
+        pause_pressed: false,
+        step_pressed: false,
     });
 
     for (i, byte) in ipl.iter().enumerate() {
@@ -372,8 +407,6 @@ fn main() -> Result<(), Error> {
         &pixels,
     );
 
-    let mut paused = true;
-
     let mut breakpoints = Breakpoints::new();
     let mut disassembler = Disassembler::new();
     let mut watchpoints = Watchpoints::new();
@@ -393,13 +426,15 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
-            if input.key_pressed(VirtualKeyCode::Space) {
-                paused = !paused;
+            if cpu.io.pause_pressed {
+                cpu.io.pause_pressed = false;
+                cpu.io.paused = !cpu.io.paused;
             }
 
-            if input.key_pressed_os(VirtualKeyCode::F5) {
-                if !paused {
-                    paused = true;
+            if cpu.io.step_pressed {
+                cpu.io.step_pressed = false;
+                if !cpu.io.paused {
+                    cpu.io.paused = true;
                 } else {
                     cpu.step();
                 }
@@ -420,20 +455,31 @@ fn main() -> Result<(), Error> {
                 framework.resize(size.width, size.height);
             }
 
-            while !paused && cyc < CPU_CLOCK / 60 {
+            while !cpu.io.paused && cyc < CPU_CLOCK / 60 {
                 let added = cpu.step();
                 cyc += added;
                 cpu.io.video.cycles += added;
 
-                paused = breakpoints.check(cpu.pc);
-                if !paused {
-                    paused = watchpoints.check(cpu.io.last_addr, cpu.io.last_is_read, cpu.io.last_is_mem);
+                cpu.io.paused = breakpoints.check(cpu.pc);
+                if !cpu.io.paused {
+                    cpu.io.paused = watchpoints.check(cpu.io.last_addr, cpu.io.last_is_read, cpu.io.last_is_mem);
                 }
             }
 
             if cyc >= CPU_CLOCK / 60 {
                 cyc -= CPU_CLOCK / 60;
                 cpu.io.video.cycles -= CPU_CLOCK / 60;
+
+                cpu.io.keyboard.set_btns_pressed(&input);
+                if cpu.io.keyboard.key_pressed != cpu.io.last_key_press {
+                    cpu.io.sub_vals[1] = cpu.io.keyboard.check_press() as u8;
+                    cpu.io.sub_vals[0] = cpu.io.keyboard.check_shift();
+                    cpu.io.sub_cmd_len = 2;
+                    cpu.assert_irq(cpu.io.key_irq_vector);
+                    cpu.io.sub_cmd = 0xe6;
+                    cpu.io.sub_obf = 0x00;
+                }
+                cpu.io.last_key_press = cpu.io.keyboard.key_pressed;
             }
 
             cpu.io.video.display(pixels.frame_mut());

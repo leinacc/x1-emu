@@ -1,6 +1,7 @@
 use egui::Context;
 
 pub struct FDC {
+    loaded: bool,
     pub sector: u8,
     side1: bool,
     floppy_bay_select: u8,
@@ -14,8 +15,9 @@ pub struct FDC {
 }
 
 impl FDC {
-    pub fn new(disk_data: [u8; 327680]) -> Self {
+    pub fn new(disk_data: [u8; 327680], loaded: bool) -> Self {
         Self {
+            loaded: loaded,
             sector: 0,
             side1: false,
             floppy_bay_select: 0,
@@ -76,6 +78,10 @@ impl FDC {
             }
             _ => panic!("cmd {:02x}", val),
         }
+    }
+
+    pub fn get_sector(&self) -> u8 {
+        if self.loaded {self.sector} else {0}
     }
 
     pub fn set_floppy(&mut self, val: u8) {

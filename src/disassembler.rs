@@ -39,13 +39,13 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
     let mut param2: u8 = 0;
     let mnemonic = match op {
         0x8e => "adc",
-        0x09 | 0x19 | 0x29 | 0x80 | 0x83..=0x85 | 0x87 | 0xc6 => "add",
+        0x09 | 0x19 | 0x29 | 0x80 | 0x81 | 0x83..=0x85 | 0x87 | 0xc6 => "add",
         0xa0 | 0xa2..=0xa5 | 0xa7 | 0xe6 => "and",
-        0xc4 | 0xcc | 0xcd | 0xd4 => "call",
+        0xc4 | 0xcc | 0xcd | 0xd4 | 0xfc => "call",
         0x3f => "ccf",
-        0xb8 | 0xbb..=0xbe | 0xfe => "cp",
+        0xb8 | 0xb9 | 0xbb..=0xbf | 0xfe => "cp",
         0x2f => "cpl",
-        0x05 | 0x0b | 0x0d | 0x15 | 0x1b | 0x1d | 0x25 | 0x2b | 0x2d | 0x35 | 0x3d => "dec",
+        0x05 | 0x0b | 0x0d | 0x15 | 0x1b | 0x1d | 0x25 | 0x2b | 0x2d | 0x35 | 0x3b | 0x3d => "dec",
         0xf3 => "di",
         0x10 => "djnz",
         0xfb => "ei",
@@ -55,12 +55,12 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x03 | 0x04 | 0x0c | 0x13 | 0x14 | 0x1c | 0x23 | 0x24 | 0x2c | 0x34 | 0x3c => "inc",
         0x01 | 0x02 | 0x06 | 0x0a | 0x0e | 0x11 | 0x12 | 0x16 | 0x1a | 0x1e | 0x21 | 0x22
             | 0x26 | 0x2a | 0x2e | 0x31 | 0x32 | 0x36 | 0x3a | 0x3e | 0x40 | 0x42 | 0x44
-            | 0x46..=0x48 | 0x4a..=0x50 | 0x53 | 0x55..=0x57 | 0x59..=0x5b | 0x5d..=0x69
-            | 0x6c | 0x6f..=0x73 | 0x75 | 0x77..=0x7e => "ld",
+            | 0x46..=0x48 | 0x4a..=0x50 | 0x52..=0x57 | 0x59..=0x69
+            | 0x6c | 0x6e..=0x73 | 0x75 | 0x77..=0x7e => "ld",
         0x00 => "nop",
-        0xc2 | 0xc3 | 0xca | 0xda | 0xe9 | 0xf2 | 0xfa => "jp",
+        0xc2 | 0xc3 | 0xca | 0xd2 | 0xda | 0xe9 | 0xf2 | 0xfa => "jp",
         0x18 | 0x20 | 0x28 | 0x30 | 0x38 => "jr",
-        0xb1 | 0xb3 | 0xb5 | 0xb7 | 0xf6 => "or",
+        0xb1..=0xb3 | 0xb5..=0xb7 | 0xf6 => "or",
         0xc1 | 0xd1 | 0xe1 | 0xf1 => "pop",
         0xc5 | 0xd5 | 0xe5 | 0xf5 => "push",
         0xc0 | 0xc8 | 0xc9 | 0xd0 | 0xd8 | 0xf0 => "ret",
@@ -71,21 +71,21 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0xc7 | 0xcf | 0xff => "rst",
         0x9b | 0x9f => "sbc",
         0x37 => "scf",
-        0x90 | 0x92 | 0x93 | 0x96 | 0xd6 => "sub",
-        0xaa | 0xab | 0xad | 0xaf | 0xee => "xor",
+        0x90..=0x93 | 0x95 | 0x96 | 0xd6 => "sub",
+        0xa9..=0xab | 0xad | 0xaf | 0xee => "xor",
 
         0xcb => {
             param1 = cpu.io.read_byte(pc);
             pc += 1;
             bytes.push(param1);
             match param1 {
-                0x6c | 0x70 | 0x74 | 0x77 => "bit",
-                0x12 => "rl",
+                0x42 | 0x47 | 0x5f | 0x6c | 0x70 | 0x72 | 0x74 | 0x77 | 0x7e | 0x7f => "bit",
+                0x12 | 0x16 => "rl",
                 0x07 => "rlc",
-                0x1a => "rr",
+                0x1a | 0x1d | 0x1e => "rr",
                 0xa0 | 0xa4 => "res",
-                0xc7 | 0xcf | 0xd7 | 0xdf | 0xe0 | 0xe4 | 0xe7 | 0xf7 | 0xff => "set",
-                0x3f => "srl",
+                0xc7 | 0xcf | 0xd7 | 0xdf | 0xe0 | 0xe4 | 0xe7 | 0xef | 0xf7 | 0xfc | 0xff => "set",
+                0x3c | 0x3f => "srl",
                 _ => {
                     if is_first {
                         panic!("implement mnem for cb {:x} at {:04x}", param1, cpu.pc);
@@ -101,7 +101,8 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
             bytes.push(param1);
             match param1 {
                 0x19 => "add",
-                0x4e | 0x7e => "ld",
+                0xbe => "cp",
+                0x21 | 0x4e | 0x7e => "ld",
                 0xe1 => "pop",
                 0xe5 => "push",
 
@@ -123,12 +124,14 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
             pc += 1;
             bytes.push(param1);
             match param1 {
+                0x5e => "im",
+                0x58 | 0x68 | 0x78 => "in",
+                0x47 | 0x4b | 0x53 | 0x5b | 0x5f | 0x73 | 0x7b => "ld",
+                0xb0 => "ldir",
                 0x44 => "neg",
                 0x49 | 0x51 | 0x59 | 0x61 | 0x69 | 0x79 => "out",
-                0x4b | 0x53 | 0x5b | 0x5f | 0x73 | 0x7b => "ld",
-                0xb0 => "ldir",
+                0x4d => "reti",
                 0x42 | 0x52 | 0x62 => "sbc",
-                0x68 | 0x78 => "in",
                 _ => {
                     if is_first {
                         panic!("implement mnem for ed {:x} at {:04x}", param1, cpu.pc);
@@ -159,11 +162,11 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
 
     // Registers before a value
     let initial_reg = match op {
-        0x3c | 0x3d | 0xa7 | 0xaf | 0xb7 => Some("a"),
+        0x3c | 0x3d | 0xa7 | 0xaf | 0xb7 | 0xbf => Some("a"),
         0x3a | 0x3e | 0xc6 | 0xdb => Some("a,"),
         0x87 | 0x9f => Some("a, a"),
         0x78 | 0x80 => Some("a, b"),
-        0x79 => Some("a, c"),
+        0x79 | 0x81 => Some("a, c"),
         0x7a => Some("a, d"),
         0x7b | 0x83 | 0x9b => Some("a, e"),
         0x7c | 0x84 => Some("a, h"),
@@ -185,7 +188,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x01 => Some("bc,"),
         0x02 => Some("(bc), a"),
 
-        0x0c | 0x0d | 0xb1 | 0xd8 => Some("c"),
+        0x0c | 0x0d | 0x91 | 0xa9 | 0xb1 | 0xb9 | 0xd8 => Some("c"),
         0x0e | 0x38 | 0xda => Some("c,"),
         0x4f => Some("c, a"),
         0x48 => Some("c, b"),
@@ -195,11 +198,13 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x4d => Some("c, l"),
         0x4e => Some("c, (hl)"),
 
-        0x14 | 0x15 | 0x92 | 0xa2 | 0xaa => Some("d"),
+        0x14 | 0x15 | 0x92 | 0xa2 | 0xaa | 0xb2 => Some("d"),
         0x16 => Some("d,"),
         0x57 => Some("d, a"),
         0x50 => Some("d, b"),
+        0x52 => Some("d, d"),
         0x53 | 0x5a => Some("d, e"),
+        0x54 => Some("d, h"),
         0x55 => Some("d, l"),
         0x56 => Some("d, (hl)"),
         0x13 | 0x1b | 0xd1 | 0xd5 => Some("de"),
@@ -212,6 +217,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x5f => Some("e, a"),
         0x59 => Some("e, c"),
         0x5b => Some("e, e"),
+        0x5c => Some("e, h"),
         0x5d => Some("e, l"),
         0x5e => Some("e, (hl)"),
 
@@ -230,7 +236,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x09 => Some("hl, bc"),
         0x19 => Some("hl, de"),
         0x29 => Some("hl, hl"),
-        0x34 | 0x35 | 0x96 | 0xbe | 0xe9 => Some("(hl)"),
+        0x34 | 0x35 | 0x96 | 0xb6 | 0xbe | 0xe9 => Some("(hl)"),
         0x36 => Some("(hl),"),
         0x77 => Some("(hl), a"),
         0x70 => Some("(hl), b"),
@@ -239,18 +245,20 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x73 => Some("(hl), e"),
         0x75 => Some("(hl), l"),
 
-        0x2c | 0x2d | 0xa5 | 0xad | 0xb5 | 0xbd => Some("l"),
+        0x2c | 0x2d | 0x95 | 0xa5 | 0xad | 0xb5 | 0xbd => Some("l"),
         0x2e => Some("l,"),
         0x6f => Some("l, a"),
         0x68 => Some("l, b"),
         0x69 => Some("l, c"),
         0x6c => Some("l, h"),
+        0x6e => Some("l, (hl)"),
 
+        0x3b => Some("sp"),
         0xe3 => Some("(sp), hl"),
 
-        0xfa => Some("m,"),
+        0xfa | 0xfc => Some("m,"),
         0xd0 => Some("nc"),
-        0x30 | 0xd4 => Some("nc,"),
+        0x30 | 0xd2 | 0xd4 => Some("nc,"),
         0xc0 => Some("nz"),
         0x20 | 0xc2 | 0xc4 => Some("nz,"),
         0xf0 => Some("p"),
@@ -263,6 +271,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
             match param1 {
                 0x07 | 0x3f => Some("a"),
                 0x12 | 0x1a => Some("d"),
+                0x3c => Some("h"),
+                0x1d => Some("l"),
+                0x16 | 0x1e => Some("(hl)"),
                 _ => None,
             }
         }
@@ -272,7 +283,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 0x7e => Some("a, (ix +"),
                 0x4e => Some("c, (ix +"),
                 0xe1 | 0xe5 => Some("ix"),
+                0x21 => Some("ix,"),
                 0x19 => Some("ix, de"),
+                0xbe => Some("(ix +"),
 
                 0xcb => {
                     match param2 {
@@ -293,7 +306,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 0x5b => Some("de,"),
                 0x42 => Some("hl, bc"),
                 0x52 => Some("hl, de"),
+                0x58 => Some("e, (c)"),
                 0x62 => Some("hl, hl"),
+                0x47 => Some("i, a"),
                 0x68 => Some("l, (c)"),
                 0x79 => Some("(c), a"),
                 0x49 => Some("(c), c"),
@@ -322,7 +337,8 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
 
     // Values
     match op {
-        0x01 | 0x11 | 0x21 | 0x31 | 0xc2 | 0xc3 | 0xc4 | 0xca | 0xcc | 0xcd | 0xd4 | 0xda | 0xf2 | 0xfa => {
+        0x01 | 0x11 | 0x21 | 0x31 | 0xc2 | 0xc3 | 0xc4 | 0xca | 0xcc | 0xcd
+            | 0xd2 | 0xd4 | 0xda | 0xf2 | 0xfa | 0xfc => {
             // a16
             let op1 = cpu.io.read_byte(pc);
             pc += 1;
@@ -396,7 +412,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0xcb => {
             match param1 {
-                0xc7 => {
+                0x42 | 0x47 | 0xc7 => {
                     // 0,
                     ins_tokens.push(Token {text: String::from("0,"), color: WHITE_COLOR});
                 }
@@ -408,7 +424,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                     // 2,
                     ins_tokens.push(Token {text: String::from("2,"), color: WHITE_COLOR});
                 }
-                0xdf => {
+                0x5f | 0xdf => {
                     // 3,
                     ins_tokens.push(Token {text: String::from("3,"), color: WHITE_COLOR});
                 }
@@ -416,15 +432,15 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                     // 4,
                     ins_tokens.push(Token {text: String::from("4,"), color: WHITE_COLOR});
                 }
-                0x6c => {
+                0x6c | 0xef => {
                     // 5,
                     ins_tokens.push(Token {text: String::from("5,"), color: WHITE_COLOR});
                 }
-                0x70 | 0x74 | 0x77 | 0xf7 => {
+                0x70 | 0x72 | 0x74 | 0x77 | 0xf7 => {
                     // 6,
                     ins_tokens.push(Token {text: String::from("6,"), color: WHITE_COLOR});
                 }
-                0xff => {
+                0x7e | 0x7f | 0xfc | 0xff => {
                     // 7,
                     ins_tokens.push(Token {text: String::from("7,"), color: WHITE_COLOR});
                 }
@@ -433,7 +449,18 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0xdd => {
             match param1 {
-                0x4e | 0x7e => {
+                0x21 => {
+                    // a16
+                    let op1 = cpu.io.read_byte(pc);
+                    pc += 1;
+                    let op2 = cpu.io.read_byte(pc);
+                    pc += 1;
+                    bytes.push(op1);
+                    bytes.push(op2);
+                    let val = ((op2 as u16) << 8) | op1 as u16;
+                    ins_tokens.push(Token {text: format!("${:04x}", val), color: WHITE_COLOR});
+                }
+                0x4e | 0x7e | 0xbe => {
                     // d8)
                     let op1 = cpu.io.read_byte(pc);
                     pc += 1;
@@ -457,7 +484,11 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0xed => unsafe {
             match param1 {
-                0x49 | 0x51 | 0x59 | 0x61 | 0x69 | 0x78 | 0x79 => target = Some(cpu.c2rust_unnamed_0.bc),
+                0x5e => {
+                    // 2
+                    ins_tokens.push(Token {text: String::from("2"), color: WHITE_COLOR});
+                }
+                0x49 | 0x51 | 0x58 | 0x59 | 0x61 | 0x68 | 0x69 | 0x78 | 0x79 => target = Some(cpu.c2rust_unnamed_0.bc),
                 0x4b | 0x5b | 0x7b => {
                     // (a16)
                     let op1 = cpu.io.read_byte(pc);
@@ -492,9 +523,16 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x32 => ins_tokens.push(Token {text: String::from("a"), color: REG_COLOR}),
         0xcb => {
             match param1 {
-                0x77 | 0xc7 | 0xcf | 0xd7 | 0xdf | 0xe7 | 0xf7 | 0xff => ins_tokens.push(Token {text: String::from("a"), color: REG_COLOR}),
-                0x70 | 0xa0 | 0xe0 => ins_tokens.push(Token {text: String::from("b"), color: REG_COLOR}),
-                0x6c | 0x74 | 0xa4 | 0xe4 => ins_tokens.push(Token {text: String::from("h"), color: REG_COLOR}),
+                0x47 | 0x5f | 0x77 | 0x7f | 0xc7 | 0xcf | 0xd7 | 0xdf | 0xe7 | 0xef | 0xf7 | 0xff 
+                    => ins_tokens.push(Token {text: String::from("a"), color: REG_COLOR}),
+                0x70 | 0xa0 | 0xe0 
+                    => ins_tokens.push(Token {text: String::from("b"), color: REG_COLOR}),
+                0x0d | 0x72
+                    => ins_tokens.push(Token {text: String::from("d"), color: REG_COLOR}),
+                0x6c | 0x74 | 0xa4 | 0xe4 | 0xfc
+                    => ins_tokens.push(Token {text: String::from("h"), color: REG_COLOR}),
+                0x7e
+                    => ins_tokens.push(Token {text: String::from("(hl)"), color: REG_COLOR}),
                 _ => (),
             }
         }
@@ -579,7 +617,7 @@ impl Disassembler {
             let tokens;
             (tokens, pc) = get_tokens(
                 cpu, pc,
-                cpu.pc != 0xda56,
+                cpu.pc != 0x5b80,
             );
             self.lines.push(tokens);
         }
@@ -597,6 +635,15 @@ impl Disassembler {
             ui.label(RichText::new(format!("{:04x}", cpu.iy)).color(WHITE_COLOR).text_style(MONOSPACE.clone()));
         });
         ui.separator();
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("I:").color(MNEM_COLOR).text_style(MONOSPACE.clone()));
+            ui.label(RichText::new(format!("{:02x}", cpu.i)).color(WHITE_COLOR).text_style(MONOSPACE.clone()));
+            ui.label(RichText::new("R:").color(MNEM_COLOR).text_style(MONOSPACE.clone()));
+            ui.label(RichText::new(format!("{:02x}", cpu.r)).color(WHITE_COLOR).text_style(MONOSPACE.clone()));
+        });
+        ui.separator();
+        
         ui.label(RichText::new("Current Registers:").color(MNEM_COLOR).text_style(MONOSPACE.clone()));
         ui.horizontal(|ui| unsafe {
             ui.label(RichText::new("A:").color(MNEM_COLOR).text_style(MONOSPACE.clone()));
@@ -610,6 +657,7 @@ impl Disassembler {
         });
         unsafe {flags(cpu.c2rust_unnamed.c2rust_unnamed.f, ui);}
         ui.separator();
+        
         ui.label(RichText::new("Backup Registers:").color(MNEM_COLOR).text_style(MONOSPACE.clone()));
         ui.horizontal(|ui| unsafe {
             ui.label(RichText::new("A:").color(MNEM_COLOR).text_style(MONOSPACE.clone()));
@@ -623,6 +671,7 @@ impl Disassembler {
         });
         unsafe {flags(cpu.c2rust_unnamed_3.c2rust_unnamed.f_, ui);}
         ui.separator();
+
         for i in 0..self.lines.len() {
             let line = &self.lines[i];
             ui.horizontal(|ui| {

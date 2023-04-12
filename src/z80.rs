@@ -3125,6 +3125,7 @@ unsafe fn exec_opcode_ed<T: Z80_io>(z: *mut Z80<T>, mut opcode: uint8_t) -> u32 
         }
         77 => {
             cyc = cyc.wrapping_add(14);
+            (*z).clr_irq();
             ret(z);
         }
         160 => {
