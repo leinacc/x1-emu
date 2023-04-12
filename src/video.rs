@@ -84,6 +84,7 @@ pub struct Video {
     fnt: [u8; 0x1800],
     pcg_ram: [u8; 0x1800],
     pub cycles: u32,
+    frame_cnt: u8,
 
     texture_handle: Option<egui::TextureHandle>,
     palettes_open: bool,
@@ -122,6 +123,7 @@ fn draw_pcg_tile(
     double_width: bool,
     double_height: bool,
     invert: bool,
+    blink: bool,
 ) {
     // let xstart = ((self.hd6845s.horiz_char_total - self.hd6845s.horiz_sync_pos) as i16 * 8) / 2;
     // let ystart = ((self.hd6845s.vert_char_total - self.hd6845s.vert_sync_pos) as i16 * 8) / 2;
@@ -154,12 +156,13 @@ fn draw_pcg_tile(
             let pen1 = fnt[tile_offset + 0x0800] >> (7 - bit_to_check) & (pen_mask & 2) >> 1;
             let pen2 = fnt[tile_offset + 0x1000] >> (7 - bit_to_check) & (pen_mask & 4) >> 2;
             let mut pen_val = pen0 | (pen1 << 1) | (pen2 << 2);
+
+            if blink {pen_val ^= 7}
+            if pen_val == 0 && !invert {continue;}
             if invert {pen_val ^= 7}
 
-            if pen_val != 0 {
-                let color = palettes[pen_val as usize];
-                draw_pixel(canvas, canvas_width, plotcol, plotrow, color);
-            }
+            let color = palettes[pen_val as usize];
+            draw_pixel(canvas, canvas_width, plotcol, plotrow, color);
         }
     }
 }
@@ -192,7 +195,7 @@ impl Video {
                     tilecol,
                     7,
                     false, false,
-                    false,
+                    false, false,
                 );
             }
         }
@@ -213,6 +216,7 @@ impl Video {
             fnt: new_fnt,
             pcg_ram: [0; 0x1800],
             cycles: 0,
+            frame_cnt: 0,
 
             texture_handle: None,
             palettes_open: false,
@@ -340,7 +344,7 @@ impl Video {
                 let double_width = (attr_byte & 0x80) != 0;
                 let double_height = (attr_byte & 0x40) != 0;
                 let pcg_bank = (attr_byte & 0x20) != 0;
-                // let blink = (attr_byte & 0x10) != 0;
+                let blink = (attr_byte & 0x10) != 0 && (self.frame_cnt & 0x10) != 0;
                 let invert = (attr_byte & 0x08) != 0;
                 let color = attr_byte & 7;
 
@@ -355,6 +359,7 @@ impl Video {
                     color,
                     double_width, double_height,
                     invert,
+                    blink,
                 );
             }
         }
@@ -374,7 +379,7 @@ impl Video {
                     tilecol,
                     7,
                     false, false,
-                    false,
+                    false, false,
                 );
             }
         }
@@ -387,6 +392,8 @@ impl Video {
         self.draw_gfxbitmap(canvas, xsize, ysize, self.pri);
         self.draw_fgtilemap(canvas, xsize, ysize);
         self.draw_gfxbitmap(canvas, xsize, ysize, self.pri^0xff);
+
+        self.frame_cnt = self.frame_cnt.wrapping_add(1);
     }
 
     pub fn get_bitmap_data(&self, addr: usize) -> u8 {

@@ -255,7 +255,7 @@ impl Gui {
         egui::Window::new("Controls")
             .open(&mut self.watchpoints_open)
             .show(ctx, |ui| {
-                if ui.button("Pause").clicked() {
+                if ui.button(if cpu.io.paused {"Unpause"} else {"Pause"}).clicked() {
                     cpu.io.pause_pressed = true;
                 }
                 if ui.button("Step").clicked() {

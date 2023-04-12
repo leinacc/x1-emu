@@ -39,7 +39,7 @@ mod watchpoints;
 mod z80;
 
 pub struct IO {
-    pub mem: [u8; 0x10000],
+    mem: [u8; 0x10000],
     ipl_loaded: bool,
     ipl: [u8; 0x1000],
     io_bank: bool,
@@ -62,8 +62,8 @@ pub struct IO {
     last_is_read: bool,
     last_is_mem: bool,
     paused: bool,
-    pub pause_pressed: bool,
-    pub step_pressed: bool,
+    pause_pressed: bool,
+    step_pressed: bool,
 }
 
 impl Z80_io for IO {
