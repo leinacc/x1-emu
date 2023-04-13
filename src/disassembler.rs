@@ -39,12 +39,13 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
     let mut param2: u8 = 0;
     let mnemonic = match op {
         0x8e => "adc",
-        0x09 | 0x19 | 0x29 | 0x80 | 0x81 | 0x83..=0x85 | 0x87 | 0xc6 => "add",
+        0x09 | 0x19 | 0x29 | 0x80 | 0x81 | 0x83..=0x87 | 0xc6 => "add",
         0xa0 | 0xa2..=0xa5 | 0xa7 | 0xe6 => "and",
         0xc4 | 0xcc | 0xcd | 0xd4 | 0xfc => "call",
         0x3f => "ccf",
         0xb8 | 0xb9 | 0xbb..=0xbf | 0xfe => "cp",
         0x2f => "cpl",
+        0x27 => "daa",
         0x05 | 0x0b | 0x0d | 0x15 | 0x1b | 0x1d | 0x25 | 0x2b | 0x2d | 0x35 | 0x3b | 0x3d => "dec",
         0xf3 => "di",
         0x10 => "djnz",
@@ -79,7 +80,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
             pc += 1;
             bytes.push(param1);
             match param1 {
-                0x42 | 0x47 | 0x5f | 0x6c | 0x70 | 0x72 | 0x74 | 0x77 | 0x7e | 0x7f => "bit",
+                0x42 | 0x47 | 0x5a | 0x5f | 0x6c | 0x70 | 0x72 | 0x74 | 0x75 | 0x77 | 0x7e | 0x7f => "bit",
                 0x12 | 0x16 => "rl",
                 0x07 => "rlc",
                 0x1a | 0x1d | 0x1e => "rr",
@@ -173,7 +174,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x7d | 0x85 => Some("a, l"),
         0x0a => Some("a, (bc)"),
         0x1a => Some("a, (de)"),
-        0x7e | 0x8e => Some("a, (hl)"),
+        0x7e | 0x86 | 0x8e => Some("a, (hl)"),
         0xf1 | 0xf5 => Some("af"),
         0x08 => Some("af, af'"),
 
@@ -424,7 +425,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                     // 2,
                     ins_tokens.push(Token {text: String::from("2,"), color: WHITE_COLOR});
                 }
-                0x5f | 0xdf => {
+                0x5a | 0x5f | 0xdf => {
                     // 3,
                     ins_tokens.push(Token {text: String::from("3,"), color: WHITE_COLOR});
                 }
@@ -436,7 +437,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                     // 5,
                     ins_tokens.push(Token {text: String::from("5,"), color: WHITE_COLOR});
                 }
-                0x70 | 0x72 | 0x74 | 0x77 | 0xf7 => {
+                0x70 | 0x72 | 0x74 | 0x75 | 0x77 | 0xf7 => {
                     // 6,
                     ins_tokens.push(Token {text: String::from("6,"), color: WHITE_COLOR});
                 }
@@ -482,13 +483,12 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 _ => (),
             }
         }
-        0xed => unsafe {
+        0xed => {
             match param1 {
                 0x5e => {
                     // 2
                     ins_tokens.push(Token {text: String::from("2"), color: WHITE_COLOR});
                 }
-                0x49 | 0x51 | 0x58 | 0x59 | 0x61 | 0x68 | 0x69 | 0x78 | 0x79 => target = Some(cpu.c2rust_unnamed_0.bc),
                 0x4b | 0x5b | 0x7b => {
                     // (a16)
                     let op1 = cpu.io.read_byte(pc);
@@ -527,10 +527,12 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                     => ins_tokens.push(Token {text: String::from("a"), color: REG_COLOR}),
                 0x70 | 0xa0 | 0xe0 
                     => ins_tokens.push(Token {text: String::from("b"), color: REG_COLOR}),
-                0x0d | 0x72
+                0x0d | 0x5a | 0x72
                     => ins_tokens.push(Token {text: String::from("d"), color: REG_COLOR}),
                 0x6c | 0x74 | 0xa4 | 0xe4 | 0xfc
                     => ins_tokens.push(Token {text: String::from("h"), color: REG_COLOR}),
+                0x75
+                    => ins_tokens.push(Token {text: String::from("l"), color: REG_COLOR}),
                 0x7e
                     => ins_tokens.push(Token {text: String::from("(hl)"), color: REG_COLOR}),
                 _ => (),
@@ -617,7 +619,7 @@ impl Disassembler {
             let tokens;
             (tokens, pc) = get_tokens(
                 cpu, pc,
-                cpu.pc != 0x5b80,
+                cpu.pc != 0x6b7,
             );
             self.lines.push(tokens);
         }

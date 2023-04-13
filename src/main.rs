@@ -3,10 +3,10 @@ use crate::fdc::FDC;
 use crate::gui::Framework;
 use crate::i8255::I8255;
 use crate::keyboard::Keyboard;
+use crate::rtc::RTC;
 use crate::video::Video;
 use crate::z80::{Z80_io, Z80};
 
-use egui::Key;
 use egui_winit::winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -34,6 +34,7 @@ mod gui;
 mod i8255;
 mod keyboard;
 mod old_z80;
+mod rtc;
 mod video;
 mod watchpoints;
 mod z80;
@@ -47,6 +48,7 @@ pub struct IO {
     i8255: I8255,
     fdc: FDC,
     cart: Cart,
+    rtc: RTC,
     sub_cmd: u8,
     sub_cmd_len: u8,
     sub_vals: [u8; 8],
@@ -233,10 +235,18 @@ impl Z80_io for IO {
                         println!("Setting TV ctrl: {:02x}", data);
                     }
                     if self.sub_cmd == 0xe9 {
-                        panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                        // todo: CMT command
+                        data = 0;
                     }
                     if (data & 0xf0) == 0xd0 {
-                        panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                        // todo: TV-related
+                        self.sub_vals[0] = 0;
+                        self.sub_vals[1] = 0;
+                        self.sub_vals[2] = 0;
+                        self.sub_vals[3] = 0;
+                        self.sub_vals[4] = 0;
+                        self.sub_vals[5] = 0;
+                        self.sub_cmd_len = 6;
                     }
                     match data {
                         0xe3 => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
@@ -257,17 +267,29 @@ impl Z80_io for IO {
                             self.sub_vals[0] = self.sub_cmd;
                             self.sub_cmd_len = 1;
                         }
-                        0xe9 => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xe9 => {
+                            // todo: CMT ctrl
+                        },
                         0xea => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
                         0xeb => {
-                            // todo: cmt
+                            // todo: CMT tape status
                             self.sub_vals[0] = 5;
                             self.sub_cmd_len = 1;
                         }
                         0xec => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
-                        0xed => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xed => {
+                            self.sub_vals[0] = self.rtc.day;
+                            self.sub_vals[1] = (self.rtc.month << 4) | (self.rtc.weekday & 0xf);
+                            self.sub_vals[2] = self.rtc.year;
+                            self.sub_cmd_len = 3;
+                        },
                         0xee => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
-                        0xef => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xef => {
+                            self.sub_vals[0] = self.rtc.hour;
+                            self.sub_vals[1] = self.rtc.minute;
+                            self.sub_vals[2] = self.rtc.second;
+                            self.sub_cmd_len = 3;
+                        },
                         _ => (),
                     }
                     self.sub_cmd = data;
@@ -348,6 +370,7 @@ fn main() -> Result<(), Error> {
         i8255: I8255::new(),
         fdc: FDC::new(floppy_data.try_into().ok().unwrap(), true),
         cart: Cart::new(cart_rom),
+        rtc: RTC::new(),
         sub_cmd: 0,
         sub_cmd_len: 0,
         sub_vals: [0; 8],

@@ -25,20 +25,24 @@ const KEY_9: u8 = 0x39;
 const KEY_COLON: u8 = 0x3a;
 const KEY_EQUALS: u8 = 0x3d;
 const KEY_A: u8 = 0x41;
+const KEY_B: u8 = 0x42;
 const KEY_D: u8 = 0x44;
 const KEY_E: u8 = 0x45;
 const KEY_F: u8 = 0x46;
 const KEY_H: u8 = 0x48;
 const KEY_I: u8 = 0x49;
+const KEY_K: u8 = 0x4b;
 const KEY_L: u8 = 0x4c;
 const KEY_M: u8 = 0x4d;
 const KEY_N: u8 = 0x4e;
 const KEY_O: u8 = 0x4f;
 const KEY_P: u8 = 0x50;
 const KEY_R: u8 = 0x52;
+const KEY_S: u8 = 0x53;
 const KEY_T: u8 = 0x54;
 const KEY_U: u8 = 0x55;
 const KEY_X: u8 = 0x58;
+const KEY_Y: u8 = 0x59;
 
 const KEYMOD_CTRL : u8 = 0x01;
 const KEYMOD_SHIFT: u8 = 0x02;
@@ -145,20 +149,24 @@ impl Keyboard {
         if input.held_shift() {
             self.shift_held = true;
             self.set_key_pressed(input, VirtualKeyCode::A, KEY_A);
+            self.set_key_pressed(input, VirtualKeyCode::B, KEY_B);
             self.set_key_pressed(input, VirtualKeyCode::D, KEY_D);
             self.set_key_pressed(input, VirtualKeyCode::E, KEY_E);
             self.set_key_pressed(input, VirtualKeyCode::F, KEY_F);
             self.set_key_pressed(input, VirtualKeyCode::H, KEY_H);
             self.set_key_pressed(input, VirtualKeyCode::I, KEY_I);
+            self.set_key_pressed(input, VirtualKeyCode::K, KEY_K);
             self.set_key_pressed(input, VirtualKeyCode::L, KEY_L);
             self.set_key_pressed(input, VirtualKeyCode::M, KEY_M);
             self.set_key_pressed(input, VirtualKeyCode::N, KEY_N);
             self.set_key_pressed(input, VirtualKeyCode::O, KEY_O);
             self.set_key_pressed(input, VirtualKeyCode::P, KEY_P);
             self.set_key_pressed(input, VirtualKeyCode::R, KEY_R);
+            self.set_key_pressed(input, VirtualKeyCode::S, KEY_S);
             self.set_key_pressed(input, VirtualKeyCode::T, KEY_T);
             self.set_key_pressed(input, VirtualKeyCode::U, KEY_U);
             self.set_key_pressed(input, VirtualKeyCode::X, KEY_X);
+            self.set_key_pressed(input, VirtualKeyCode::Y, KEY_Y);
         }
     }
 }
