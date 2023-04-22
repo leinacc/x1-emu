@@ -5,7 +5,7 @@ use crate::i8255::I8255;
 use crate::keyboard::Keyboard;
 use crate::rtc::RTC;
 use crate::video::Video;
-use crate::z80::{Z80_io, Z80};
+use crate::z80::{Z80_IO, Z80};
 
 use egui_winit::winit::{
     dpi::LogicalSize,
@@ -33,7 +33,6 @@ mod fdc;
 mod gui;
 mod i8255;
 mod keyboard;
-mod old_z80;
 mod rtc;
 mod tests;
 mod video;
@@ -69,8 +68,8 @@ pub struct IO {
     step_pressed: bool,
 }
 
-impl Z80_io for IO {
-    fn read_byte(&mut self, addr: u16) -> u8 {
+impl Z80_IO for IO {
+    fn peek_byte(&mut self, addr: u16) -> u8 {
         self.last_addr = addr;
         self.last_is_read = true;
         self.last_is_mem = true;
@@ -93,7 +92,7 @@ impl Z80_io for IO {
         self.mem[addr as usize] = value;
     }
 
-    fn port_in(&mut self, addr: u16) -> u8 {
+    fn peek_io(&mut self, addr: u16) -> u8 {
         self.last_addr = addr;
         self.last_is_read = true;
         self.last_is_mem = false;
@@ -202,7 +201,7 @@ impl Z80_io for IO {
         }
     }
 
-    fn port_out(&mut self, addr: u16, value: u8) {
+    fn write_io(&mut self, addr: u16, value: u8) {
         self.last_addr = addr;
         self.last_is_read = false;
         self.last_is_mem = false;

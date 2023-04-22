@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::old_z80::{FDEPhase, Z80, Z80_IO};
+    use crate::z80::{FDEPhase, Z80, Z80_IO};
     use serde::Deserialize;
     use std::fs::File;
     use std::io::Read;
@@ -6529,31 +6529,6 @@ mod tests {
             println!("Test: {}", test.name);
             let initial = &test.initial;
             let mut cpu = Z80::new(
-                initial.pc,
-                initial.sp,
-                initial.a,
-                initial.b,
-                initial.c,
-                initial.d,
-                initial.e,
-                initial.f,
-                initial.h,
-                initial.l,
-                initial.i,
-                initial.r,
-                initial.ei,
-                initial.wz,
-                initial.ix,
-                initial.iy,
-                initial.af_,
-                initial.bc_,
-                initial.de_,
-                initial.hl_,
-                initial.im,
-                initial.p,
-                initial.q,
-                initial.iff1,
-                initial.iff2,
                 IO {
                     memory: [0; 0x10000],
                     io: [0; 0x10000],
@@ -6561,6 +6536,31 @@ mod tests {
                     expected_ports: vec![],
                 },
             );
+            cpu.pc = initial.pc;
+            cpu.sp = initial.sp;
+            cpu.a = initial.a;
+            cpu.b = initial.b;
+            cpu.c = initial.c;
+            cpu.d = initial.d;
+            cpu.e = initial.e;
+            cpu.f = initial.f;
+            cpu.h = initial.h;
+            cpu.l = initial.l;
+            cpu.i = initial.i;
+            cpu.r = initial.r;
+            cpu.ei = initial.ei;
+            cpu.wz = initial.wz;
+            cpu.ix = initial.ix;
+            cpu.iy = initial.iy;
+            cpu.af_ = initial.af_;
+            cpu.bc_ = initial.bc_;
+            cpu.de_ = initial.de_;
+            cpu.hl_ = initial.hl_;
+            cpu.im = initial.im;
+            cpu.p = initial.p;
+            cpu.q = initial.q;
+            cpu.iff1 = initial.iff1;
+            cpu.iff2 = initial.iff2;
             for i in 0..initial.ram.len() {
                 let (addr, val) = initial.ram[i];
                 cpu.io.memory[addr as usize] = val;
