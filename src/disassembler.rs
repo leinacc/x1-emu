@@ -39,7 +39,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
     let mut param2: u8 = 0;
     let mnemonic = match op {
         0x8e => "adc",
-        0x09 | 0x19 | 0x29 | 0x80 | 0x81 | 0x83..=0x87 | 0xc6 => "add",
+        0x09 | 0x19 | 0x29 | 0x39 | 0x80 | 0x81 | 0x83..=0x87 | 0xc6 => "add",
         0xa0 | 0xa2..=0xa5 | 0xa7 | 0xe6 => "and",
         0xc4 | 0xcc | 0xcd | 0xd4 | 0xfc => "call",
         0x3f => "ccf",
@@ -53,9 +53,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x08 | 0xe3 | 0xeb => "ex",
         0xd9 => "exx",
         0xdb => "in",
-        0x03 | 0x04 | 0x0c | 0x13 | 0x14 | 0x1c | 0x23 | 0x24 | 0x2c | 0x34 | 0x3c => "inc",
+        0x03 | 0x04 | 0x0c | 0x13 | 0x14 | 0x1c | 0x23 | 0x24 | 0x2c | 0x33 | 0x34 | 0x3c => "inc",
         0x01 | 0x02 | 0x06 | 0x0a | 0x0e | 0x11 | 0x12 | 0x16 | 0x1a | 0x1e | 0x21 | 0x22
-            | 0x26 | 0x2a | 0x2e | 0x31 | 0x32 | 0x36 | 0x3a | 0x3e | 0x40 | 0x42 | 0x44
+            | 0x26 | 0x2a | 0x2e | 0x31 | 0x32 | 0x36 | 0x3a | 0x3e | 0x40..=0x42 | 0x44
             | 0x46..=0x48 | 0x4a..=0x50 | 0x52..=0x57 | 0x59..=0x69
             | 0x6c | 0x6e..=0x73 | 0x75 | 0x77..=0x7e => "ld",
         0x00 => "nop",
@@ -69,7 +69,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x07 => "rlca",
         0x1f => "rra",
         0x0f => "rrca",
-        0xc7 | 0xcf | 0xff => "rst",
+        0xc7 | 0xcf | 0xef | 0xff => "rst",
         0x9b | 0x9f => "sbc",
         0x37 => "scf",
         0x90..=0x93 | 0x95 | 0x96 | 0xd6 => "sub",
@@ -84,6 +84,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 0x12 | 0x16 => "rl",
                 0x07 => "rlc",
                 0x1a | 0x1d | 0x1e => "rr",
+                0x0d => "rrc",
                 0xa0 | 0xa4 => "res",
                 0xc7 | 0xcf | 0xd7 | 0xdf | 0xe0 | 0xe4 | 0xe7 | 0xef | 0xf7 | 0xfc | 0xff => "set",
                 0x3c | 0x3f => "srl",
@@ -182,6 +183,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x06 => Some("b,"),
         0x47 => Some("b, a"),
         0x40 => Some("b, b"),
+        0x41 => Some("b, c"),
         0x42 => Some("b, d"),
         0x44 => Some("b, h"),
         0x46 => Some("b, (hl)"),
@@ -237,6 +239,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x09 => Some("hl, bc"),
         0x19 => Some("hl, de"),
         0x29 => Some("hl, hl"),
+        0x39 => Some("hl, sp"),
         0x34 | 0x35 | 0x96 | 0xb6 | 0xbe | 0xe9 => Some("(hl)"),
         0x36 => Some("(hl),"),
         0x77 => Some("(hl), a"),
@@ -254,7 +257,8 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x6c => Some("l, h"),
         0x6e => Some("l, (hl)"),
 
-        0x3b => Some("sp"),
+        0x33 | 0x3b => Some("sp"),
+        0x31 => Some("sp,"),
         0xe3 => Some("(sp), hl"),
 
         0xfa | 0xfc => Some("m,"),
@@ -264,7 +268,6 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x20 | 0xc2 | 0xc4 => Some("nz,"),
         0xf0 => Some("p"),
         0xf2 => Some("p,"),
-        0x31 => Some("sp,"),
         0xc8 => Some("z"),
         0x28 | 0xca | 0xcc => Some("z,"),
 
@@ -273,7 +276,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 0x07 | 0x3f => Some("a"),
                 0x12 | 0x1a => Some("d"),
                 0x3c => Some("h"),
-                0x1d => Some("l"),
+                0x0d | 0x1d => Some("l"),
                 0x16 | 0x1e => Some("(hl)"),
                 _ => None,
             }
@@ -406,6 +409,10 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0xcf => {
             // rst $08
             ins_tokens.push(Token {text: String::from("$08"), color: WHITE_COLOR});
+        }
+        0xef => {
+            // rst $28
+            ins_tokens.push(Token {text: String::from("$28"), color: WHITE_COLOR});
         }
         0xff => {
             // rst $38
@@ -619,7 +626,8 @@ impl Disassembler {
             let tokens;
             (tokens, pc) = get_tokens(
                 cpu, pc,
-                cpu.pc != 0x6b7,
+                // cpu.pc != 0x904b,
+                false,
             );
             self.lines.push(tokens);
         }

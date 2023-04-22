@@ -35,6 +35,7 @@ mod i8255;
 mod keyboard;
 mod old_z80;
 mod rtc;
+mod tests;
 mod video;
 mod watchpoints;
 mod z80;

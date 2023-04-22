@@ -26,6 +26,7 @@ const KEY_COLON: u8 = 0x3a;
 const KEY_EQUALS: u8 = 0x3d;
 const KEY_A: u8 = 0x41;
 const KEY_B: u8 = 0x42;
+const KEY_C: u8 = 0x43;
 const KEY_D: u8 = 0x44;
 const KEY_E: u8 = 0x45;
 const KEY_F: u8 = 0x46;
@@ -41,6 +42,7 @@ const KEY_R: u8 = 0x52;
 const KEY_S: u8 = 0x53;
 const KEY_T: u8 = 0x54;
 const KEY_U: u8 = 0x55;
+const KEY_V: u8 = 0x56;
 const KEY_X: u8 = 0x58;
 const KEY_Y: u8 = 0x59;
 
@@ -150,6 +152,7 @@ impl Keyboard {
             self.shift_held = true;
             self.set_key_pressed(input, VirtualKeyCode::A, KEY_A);
             self.set_key_pressed(input, VirtualKeyCode::B, KEY_B);
+            self.set_key_pressed(input, VirtualKeyCode::C, KEY_C);
             self.set_key_pressed(input, VirtualKeyCode::D, KEY_D);
             self.set_key_pressed(input, VirtualKeyCode::E, KEY_E);
             self.set_key_pressed(input, VirtualKeyCode::F, KEY_F);
@@ -165,6 +168,7 @@ impl Keyboard {
             self.set_key_pressed(input, VirtualKeyCode::S, KEY_S);
             self.set_key_pressed(input, VirtualKeyCode::T, KEY_T);
             self.set_key_pressed(input, VirtualKeyCode::U, KEY_U);
+            self.set_key_pressed(input, VirtualKeyCode::V, KEY_V);
             self.set_key_pressed(input, VirtualKeyCode::X, KEY_X);
             self.set_key_pressed(input, VirtualKeyCode::Y, KEY_Y);
         }
