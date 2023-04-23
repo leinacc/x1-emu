@@ -5,7 +5,7 @@ use crate::i8255::I8255;
 use crate::keyboard::Keyboard;
 use crate::rtc::RTC;
 use crate::video::Video;
-use crate::z80::{Z80_IO, Z80};
+use crate::z80::{Z80, Z80IO};
 
 use egui_winit::winit::{
     dpi::LogicalSize,
@@ -68,7 +68,7 @@ pub struct IO {
     step_pressed: bool,
 }
 
-impl Z80_IO for IO {
+impl Z80IO for IO {
     fn peek_byte(&mut self, addr: u16) -> u8 {
         self.last_addr = addr;
         self.last_is_read = true;
@@ -249,11 +249,15 @@ impl Z80_IO for IO {
                         self.sub_cmd_len = 6;
                     }
                     match data {
-                        0xe3 => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xe3 => {
+                            panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                        }
                         0xe4 => {
                             // Key IRQ vector set above
-                        },
-                        0xe5 => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        }
+                        0xe5 => {
+                            panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                        }
                         0xe6 => {
                             self.sub_vals[1] = self.keyboard.check_press() as u8;
                             self.sub_vals[0] = self.keyboard.check_shift();
@@ -261,7 +265,7 @@ impl Z80_IO for IO {
                         }
                         0xe7 => {
                             // todo: unknown TV ctrl
-                        },
+                        }
                         0xe8 => {
                             // todo: TV ctrl read-out
                             self.sub_vals[0] = self.sub_cmd;
@@ -269,27 +273,33 @@ impl Z80_IO for IO {
                         }
                         0xe9 => {
                             // todo: CMT ctrl
-                        },
-                        0xea => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        }
+                        0xea => {
+                            panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                        }
                         0xeb => {
                             // todo: CMT tape status
                             self.sub_vals[0] = 5;
                             self.sub_cmd_len = 1;
                         }
-                        0xec => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        0xec => {
+                            panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                        }
                         0xed => {
                             self.sub_vals[0] = self.rtc.day;
                             self.sub_vals[1] = (self.rtc.month << 4) | (self.rtc.weekday & 0xf);
                             self.sub_vals[2] = self.rtc.year;
                             self.sub_cmd_len = 3;
-                        },
-                        0xee => {panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);},
+                        }
+                        0xee => {
+                            panic!("Implement sub cmd {:x} {:x}", self.sub_cmd, data);
+                        }
                         0xef => {
                             self.sub_vals[0] = self.rtc.hour;
                             self.sub_vals[1] = self.rtc.minute;
                             self.sub_vals[2] = self.rtc.second;
                             self.sub_cmd_len = 3;
-                        },
+                        }
                         _ => (),
                     }
                     self.sub_cmd = data;
@@ -313,7 +323,7 @@ impl Z80_IO for IO {
                     if (self.i8255.port_c & 0x20) == 0 && (prev_portc & 0x20) != 0 {
                         self.io_bank = true;
                     }
-                },
+                }
                 0x1b00 => {
                     // ay sound
                     // println!("Write from port 1b00 val {:x}", value);
@@ -353,7 +363,7 @@ fn main() -> Result<(), Error> {
     let ipl = get_file_as_byte_vec(&String::from("res/ipl.x1"));
     // let ank = get_file_as_byte_vec(&String::from("res/ank.fnt")); // 8x16
     let fnt = get_file_as_byte_vec(&String::from("res/fnt0808.x1")); // 8x8
-    // let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
+                                                                     // let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
     let cart_rom = vec![0];
     let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
     // let floppy_data = vec![0; 327680];
@@ -364,7 +374,7 @@ fn main() -> Result<(), Error> {
         ipl: [0; 0x1000],
         io_bank: false,
         video: Video::new(
-            // ank, 
+            // ank,
             fnt,
         ),
         i8255: I8255::new(),
@@ -389,6 +399,7 @@ fn main() -> Result<(), Error> {
         pause_pressed: false,
         step_pressed: false,
     });
+    cpu.reset();
 
     for (i, byte) in ipl.iter().enumerate() {
         cpu.io.ipl[i] = *byte;
@@ -487,7 +498,11 @@ fn main() -> Result<(), Error> {
 
                 cpu.io.paused = breakpoints.check(cpu.pc);
                 if !cpu.io.paused {
-                    cpu.io.paused = watchpoints.check(cpu.io.last_addr, cpu.io.last_is_read, cpu.io.last_is_mem);
+                    cpu.io.paused = watchpoints.check(
+                        cpu.io.last_addr,
+                        cpu.io.last_is_read,
+                        cpu.io.last_is_mem,
+                    );
                 }
             }
 
@@ -520,9 +535,9 @@ fn main() -> Result<(), Error> {
                 // Prepare egui
                 disassembler.prepare(&mut cpu);
                 framework.prepare(
-                    &window, 
+                    &window,
                     &mut cpu,
-                    &disassembler, 
+                    &disassembler,
                     &mut breakpoints,
                     &mut watchpoints,
                 );

@@ -1,4 +1,4 @@
-use crate::constants::{CPU_CLOCK, DISPLAY_WIDTH, SCREEN_WIDTH, SCREEN_HEIGHT};
+use crate::constants::{CPU_CLOCK, DISPLAY_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};
 use egui::Context;
 
 const PAL_SQUARE_PX: usize = 16;
@@ -88,7 +88,7 @@ pub struct Video {
 
     texture_handle: Option<egui::TextureHandle>,
     palettes_open: bool,
-    palettes_canvas: [u8; 8*PAL_SQUARE_PX * 2*PAL_SQUARE_PX * 4],
+    palettes_canvas: [u8; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
     bitmap0_open: bool,
     bitmap0_canvas: [u8; (SCREEN_WIDTH * SCREEN_HEIGHT * 4) as usize],
     pcgrom_open: bool,
@@ -97,13 +97,7 @@ pub struct Video {
     pcgram_canvas: [u8; 128 * 128 * 4],
 }
 
-fn draw_pixel(
-    canvas: &mut [u8],
-    canvas_width: u32,
-    plotcol: i16,
-    plotrow: i16,
-    color: u32,
-) {
+fn draw_pixel(canvas: &mut [u8], canvas_width: u32, plotcol: i16, plotrow: i16, color: u32) {
     let offs = ((plotrow as usize) * canvas_width as usize + plotcol as usize) * 4;
     canvas[offs + 0] = ((color >> 24) & 0xff) as u8; // r
     canvas[offs + 1] = ((color >> 16) & 0xff) as u8; // g
@@ -157,9 +151,15 @@ fn draw_pcg_tile(
             let pen2 = fnt[tile_offset + 0x1000] >> (7 - bit_to_check) & (pen_mask & 4) >> 2;
             let mut pen_val = pen0 | (pen1 << 1) | (pen2 << 2);
 
-            if blink {pen_val ^= 7}
-            if pen_val == 0 && !invert {continue;}
-            if invert {pen_val ^= 7}
+            if blink {
+                pen_val ^= 7
+            }
+            if pen_val == 0 && !invert {
+                continue;
+            }
+            if invert {
+                pen_val ^= 7
+            }
 
             let color = palettes[pen_val as usize];
             draw_pixel(canvas, canvas_width, plotcol, plotrow, color);
@@ -169,7 +169,7 @@ fn draw_pcg_tile(
 
 impl Video {
     pub fn new(
-        // ank: Vec<u8>, 
+        // ank: Vec<u8>,
         fnt: Vec<u8>,
     ) -> Self {
         let mut new_fnt = [0; 0x1800];
@@ -194,8 +194,10 @@ impl Video {
                     tilerow,
                     tilecol,
                     7,
-                    false, false,
-                    false, false,
+                    false,
+                    false,
+                    false,
+                    false,
                 );
             }
         }
@@ -220,7 +222,7 @@ impl Video {
 
             texture_handle: None,
             palettes_open: false,
-            palettes_canvas: [0; 8*PAL_SQUARE_PX * 2*PAL_SQUARE_PX * 4],
+            palettes_canvas: [0; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
             bitmap0_open: false,
             bitmap0_canvas: [0; (SCREEN_WIDTH * SCREEN_HEIGHT * 4) as usize],
             pcgrom_open: false,
@@ -252,8 +254,8 @@ impl Video {
         for y in 0..PAL_SQUARE_PX {
             for x in 0..PAL_SQUARE_PX {
                 draw_pixel(
-                    &mut self.palettes_canvas, 
-                    (8*PAL_SQUARE_PX) as u32,
+                    &mut self.palettes_canvas,
+                    (8 * PAL_SQUARE_PX) as u32,
                     (gridx * PAL_SQUARE_PX + x) as i16,
                     (gridy * PAL_SQUARE_PX + y) as i16,
                     color,
@@ -270,11 +272,11 @@ impl Video {
             if (color & 7) == pri_i {
                 break;
             }
-    
+
             pri_i += 1;
             pri_mask_calc <<= 1;
         }
-    
+
         pri_mask_calc
     }
 
@@ -318,13 +320,15 @@ impl Video {
                         draw_pixel(
                             canvas,
                             DISPLAY_WIDTH,
-                            plotcol, plotrow,
-                            self.palettes[color as usize|8],
+                            plotcol,
+                            plotrow,
+                            self.palettes[color as usize | 8],
                         );
                         draw_pixel(
                             &mut self.bitmap0_canvas,
                             SCREEN_WIDTH,
-                            plotcol, plotrow,
+                            plotcol,
+                            plotrow,
                             self.palettes[color as usize],
                         );
                     }
@@ -357,7 +361,8 @@ impl Video {
                     row,
                     col,
                     color,
-                    double_width, double_height,
+                    double_width,
+                    double_height,
                     invert,
                     blink,
                 );
@@ -378,8 +383,10 @@ impl Video {
                     tilerow,
                     tilecol,
                     7,
-                    false, false,
-                    false, false,
+                    false,
+                    false,
+                    false,
+                    false,
                 );
             }
         }
@@ -391,7 +398,7 @@ impl Video {
 
         self.draw_gfxbitmap(canvas, xsize, ysize, self.pri);
         self.draw_fgtilemap(canvas, xsize, ysize);
-        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri^0xff);
+        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri ^ 0xff);
 
         self.frame_cnt = self.frame_cnt.wrapping_add(1);
     }
@@ -498,30 +505,35 @@ impl Video {
         egui::Window::new("Palettes")
             .open(&mut self.palettes_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle = self.texture_handle.insert(ui.ctx().load_texture(
-                    "palettes",
-                    egui::ColorImage::from_rgba_unmultiplied(
-                        [8*PAL_SQUARE_PX, 2*PAL_SQUARE_PX], 
-                        &self.palettes_canvas,
-                    ),
-                    Default::default(),
-                ));
+                let texture: &egui::TextureHandle =
+                    self.texture_handle.insert(ui.ctx().load_texture(
+                        "palettes",
+                        egui::ColorImage::from_rgba_unmultiplied(
+                            [8 * PAL_SQUARE_PX, 2 * PAL_SQUARE_PX],
+                            &self.palettes_canvas,
+                        ),
+                        Default::default(),
+                    ));
                 ui.image(texture, texture.size_vec2());
             });
 
         egui::Window::new("Bitmap 0")
             .open(&mut self.bitmap0_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle = self.texture_handle.insert(ui.ctx().load_texture(
-                    "bitmap0",
-                    egui::ColorImage::from_rgba_unmultiplied(
-                        [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
-                        &self.bitmap0_canvas,
-                    ),
-                    Default::default(),
-                ));
+                let texture: &egui::TextureHandle =
+                    self.texture_handle.insert(ui.ctx().load_texture(
+                        "bitmap0",
+                        egui::ColorImage::from_rgba_unmultiplied(
+                            [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
+                            &self.bitmap0_canvas,
+                        ),
+                        Default::default(),
+                    ));
                 ui.image(texture, texture.size_vec2());
-                ui.label(format!("Bitmap 0 src: ${:04x}", self.hd6845s.disp_start_addr & 0x3f00));
+                ui.label(format!(
+                    "Bitmap 0 src: ${:04x}",
+                    self.hd6845s.disp_start_addr & 0x3f00
+                ));
                 ui.label(format!("Horiz disp: {:02x}", self.hd6845s.horiz_disp));
                 ui.label(format!("Vert disp: {:02x}", self.hd6845s.vert_disp));
                 ui.label(format!("Pri: {:02x}", self.pri));
@@ -530,28 +542,24 @@ impl Video {
         egui::Window::new("PCG ROM Viewer")
             .open(&mut self.pcgrom_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle = self.texture_handle.insert(ui.ctx().load_texture(
-                    "pcgrom",
-                    egui::ColorImage::from_rgba_unmultiplied(
-                        [128, 128], 
-                        &self.pcgrom_canvas,
-                    ),
-                    Default::default(),
-                ));
+                let texture: &egui::TextureHandle =
+                    self.texture_handle.insert(ui.ctx().load_texture(
+                        "pcgrom",
+                        egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgrom_canvas),
+                        Default::default(),
+                    ));
                 ui.image(texture, texture.size_vec2());
             });
 
         egui::Window::new("PCG RAM Viewer")
             .open(&mut self.pcgram_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle = self.texture_handle.insert(ui.ctx().load_texture(
-                    "pcgram",
-                    egui::ColorImage::from_rgba_unmultiplied(
-                        [128, 128], 
-                        &self.pcgram_canvas,
-                    ),
-                    Default::default(),
-                ));
+                let texture: &egui::TextureHandle =
+                    self.texture_handle.insert(ui.ctx().load_texture(
+                        "pcgram",
+                        egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgram_canvas),
+                        Default::default(),
+                    ));
                 ui.image(texture, texture.size_vec2());
             });
     }

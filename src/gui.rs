@@ -102,7 +102,8 @@ impl Framework {
             // Draw the demo application.
             egui::TopBottomPanel::top("menubar_container").show(egui_ctx, |ui| {
                 egui::menu::bar(ui, |ui| {
-                    self.gui.ui(egui_ctx, ui, cpu, disassembler, breakpoints, watchpoints);
+                    self.gui
+                        .ui(egui_ctx, ui, cpu, disassembler, breakpoints, watchpoints);
                     cpu.io.video.ui(egui_ctx, ui);
                     cpu.io.fdc.ui(egui_ctx, ui);
                 });
@@ -183,11 +184,11 @@ impl Gui {
 
     /// Create the UI using egui.
     fn ui(
-        &mut self, 
+        &mut self,
         ctx: &Context,
         ui: &mut egui::Ui,
-        cpu: &mut Z80<crate::IO>, 
-        disassembler: &Disassembler, 
+        cpu: &mut Z80<crate::IO>,
+        disassembler: &Disassembler,
         breakpoints: &mut Breakpoints,
         watchpoints: &mut Watchpoints,
     ) {
@@ -222,7 +223,13 @@ impl Gui {
             ctx,
             &mut self.mem_editor_open,
             &mut cpu.io.mem,
-            |mem, address| if address < 0x10000 {Some(mem[address])} else {None},
+            |mem, address| {
+                if address < 0x10000 {
+                    Some(mem[address])
+                } else {
+                    None
+                }
+            },
             |mem, address, val| (mem[address] = val),
         );
 
@@ -230,8 +237,14 @@ impl Gui {
             ctx,
             &mut self.tvram_editor_open,
             &mut cpu.io.video.tvram,
-            |mem, address| if address < 0x800 {Some(mem[address])} else {None},
-            |mem, address, val| {mem[address] = val},
+            |mem, address| {
+                if address < 0x800 {
+                    Some(mem[address])
+                } else {
+                    None
+                }
+            },
+            |mem, address, val| mem[address] = val,
         );
 
         egui::Window::new("Disassembly")
@@ -255,7 +268,10 @@ impl Gui {
         egui::Window::new("Controls")
             .open(&mut self.watchpoints_open)
             .show(ctx, |ui| {
-                if ui.button(if cpu.io.paused {"Unpause"} else {"Pause"}).clicked() {
+                if ui
+                    .button(if cpu.io.paused { "Unpause" } else { "Pause" })
+                    .clicked()
+                {
                     cpu.io.pause_pressed = true;
                 }
                 if ui.button("Step").clicked() {

@@ -43,9 +43,9 @@ impl FDC {
                 self.reading = false;
                 self.offs_in_sector = 0;
             } else {
-                let sector = (self.sector as usize) + 
-                    (if self.side1 {0x10} else {0}) + 
-                    (self.track as usize) * 0x20;
+                let sector = (self.sector as usize)
+                    + (if self.side1 { 0x10 } else { 0 })
+                    + (self.track as usize) * 0x20;
                 self.data = self.disk_data[sector * 0x100 + self.offs_in_sector as usize - 0x100];
                 self.offs_in_sector += 1;
                 ret |= 1;
@@ -67,7 +67,7 @@ impl FDC {
             0x00 => {
                 // todo: restore
                 self.offs_in_sector = 0;
-            },
+            }
             0x10 => {
                 // todo: seek
                 self.track = self.data;
@@ -81,7 +81,11 @@ impl FDC {
     }
 
     pub fn get_sector(&self) -> u8 {
-        if self.loaded {self.sector} else {0}
+        if self.loaded {
+            self.sector
+        } else {
+            0
+        }
     }
 
     pub fn set_floppy(&mut self, val: u8) {
@@ -107,7 +111,7 @@ impl FDC {
             .show(ctx, |ui| {
                 ui.label(format!("Floppy selected: {}", self.floppy_bay_select));
                 ui.label(format!("Track: {:02x}", self.track));
-                ui.label(format!("Side: {}", if self.side1 {"B"} else {"A"}));
+                ui.label(format!("Side: {}", if self.side1 { "B" } else { "A" }));
                 ui.label(format!("Sector: {:02x}", self.sector));
                 ui.label(format!("Offs in sector: {:02x}", self.offs_in_sector));
             });

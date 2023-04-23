@@ -20,7 +20,7 @@ pub struct Watchpoints {
     read: bool,
     write: bool,
     mem_io: MemIO,
-    watchpoints: Vec<Watchpoint>
+    watchpoints: Vec<Watchpoint>,
 }
 
 impl Watchpoints {
@@ -38,7 +38,8 @@ impl Watchpoints {
     pub fn display(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             let start_label = ui.label("Start:");
-            ui.text_edit_singleline(&mut self.addr_start).labelled_by(start_label.id);
+            ui.text_edit_singleline(&mut self.addr_start)
+                .labelled_by(start_label.id);
             self.addr_start.retain(|c| c.is_ascii_hexdigit());
             if self.addr_start.len() > 4 {
                 self.addr_start = self.addr_start[..4].to_string();
@@ -46,7 +47,8 @@ impl Watchpoints {
         });
         ui.horizontal(|ui| {
             let end_label = ui.label("End:");
-            ui.text_edit_singleline(&mut self.addr_end).labelled_by(end_label.id);
+            ui.text_edit_singleline(&mut self.addr_end)
+                .labelled_by(end_label.id);
             self.addr_end.retain(|c| c.is_ascii_hexdigit());
             if self.addr_end.len() > 4 {
                 self.addr_end = self.addr_end[..4].to_string();
@@ -66,8 +68,10 @@ impl Watchpoints {
                 let addr_start = u16::from_str_radix(&self.addr_start, 16).ok().unwrap();
                 let addr_end = u16::from_str_radix(&self.addr_end, 16).ok().unwrap();
                 self.watchpoints.push(Watchpoint {
-                    addr_start: addr_start, addr_end: addr_end,
-                    read: self.read, write: self.write,
+                    addr_start: addr_start,
+                    addr_end: addr_end,
+                    read: self.read,
+                    write: self.write,
                     mem_io: self.mem_io,
                 });
             }
@@ -79,9 +83,16 @@ impl Watchpoints {
             for i in 0..self.watchpoints.len() {
                 let watchpoint = &self.watchpoints[i];
                 ui.horizontal(|ui| {
-                    ui.label(format!("{}: {:04x}-{:04x}", i, watchpoint.addr_start, watchpoint.addr_end));
-                    if watchpoint.read {ui.label("Read");}
-                    if watchpoint.write {ui.label("Write");}
+                    ui.label(format!(
+                        "{}: {:04x}-{:04x}",
+                        i, watchpoint.addr_start, watchpoint.addr_end
+                    ));
+                    if watchpoint.read {
+                        ui.label("Read");
+                    }
+                    if watchpoint.write {
+                        ui.label("Write");
+                    }
                     if watchpoint.mem_io == MemIO::MEM {
                         ui.label("Memory");
                     } else {
@@ -94,7 +105,9 @@ impl Watchpoints {
             }
             match removed {
                 None => (),
-                Some(idx) => {self.watchpoints.remove(idx);},
+                Some(idx) => {
+                    self.watchpoints.remove(idx);
+                }
             }
         }
     }

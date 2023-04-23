@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::z80::{FDEPhase, Z80, Z80_IO};
+    use crate::z80::{FDEPhase, Z80, Z80IO};
     use serde::Deserialize;
-    use std::fs::{File, metadata};
+    use std::fs::{metadata, File};
     use std::io::Read;
 
     #[derive(Deserialize)]
@@ -57,7 +57,7 @@ mod tests {
         let metadata = metadata(&filename).expect("unable to read metadata");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("buffer overflow");
-    
+
         buffer
     }
 
@@ -6515,19 +6515,19 @@ mod tests {
             ports: Vec<(u16, u8, char)>,
             expected_ports: Vec<(u16, u8, char)>,
         }
-        impl Z80_IO for IO {
+        impl Z80IO for IO {
             fn peek_byte(&mut self, addr: u16) -> u8 {
                 self.memory[addr as usize]
             }
-    
+
             fn write_byte(&mut self, addr: u16, val: u8) {
                 self.memory[addr as usize] = val;
             }
-    
+
             fn peek_io(&mut self, addr: u16) -> u8 {
                 self.io[addr as usize]
             }
-    
+
             fn write_io(&mut self, addr: u16, val: u8) {
                 self.ports.push((addr, val, 'w'));
             }
@@ -6537,14 +6537,12 @@ mod tests {
         for test in &tests {
             println!("Test: {}", test.name);
             let initial = &test.initial;
-            let mut cpu = Z80::new(
-                IO {
-                    memory: [0; 0x10000],
-                    io: [0; 0x10000],
-                    ports: vec![],
-                    expected_ports: vec![],
-                },
-            );
+            let mut cpu = Z80::new(IO {
+                memory: [0; 0x10000],
+                io: [0; 0x10000],
+                ports: vec![],
+                expected_ports: vec![],
+            });
             cpu.pc = initial.pc;
             cpu.sp = initial.sp;
             cpu.a = initial.a;
@@ -6592,7 +6590,7 @@ mod tests {
             let mut cycles: Vec<(Option<u16>, Option<u8>, String)> = vec![];
             cpu.tick();
             cycles.push((cpu.addr_bus, cpu.data_bus, cpu.pin_state()));
-            while cpu.phase != FDEPhase::INIT {
+            while cpu.phase != FDEPhase::Init {
                 cpu.tick();
                 let cycle = (cpu.addr_bus, cpu.data_bus, cpu.pin_state());
                 cycles.push(cycle);
@@ -6645,151 +6643,15 @@ mod tests {
 
     #[test]
     fn test_prelim() {
-        test_cpm("prelim.com", "Preliminary tests complete");
+        test_cpm("prelim.com", "prelim.txt");
     }
     #[test]
     fn test_zexall() {
-        test_cpm("zexall.cim", "Z80all instruction exerciser
-<adc,sbc> hl,<bc,de,hl,sp>....  OK
-add hl,<bc,de,hl,sp>..........  OK
-add ix,<bc,de,ix,sp>..........  OK
-add iy,<bc,de,iy,sp>..........  OK
-aluop a,nn....................  OK
-aluop a,<b,c,d,e,h,l,(hl),a>..  OK
-aluop a,<ixh,ixl,iyh,iyl>.....  OK
-aluop a,(<ix,iy>+1)...........  OK
-bit n,(<ix,iy>+1).............  OK
-bit n,<b,c,d,e,h,l,(hl),a>....  OK
-cpd<r>........................  OK
-cpi<r>........................  OK
-<daa,cpl,scf,ccf>.............  OK
-<inc,dec> a...................  OK
-<inc,dec> b...................  OK
-<inc,dec> bc..................  OK
-<inc,dec> c...................  OK
-<inc,dec> d...................  OK
-<inc,dec> de..................  OK
-<inc,dec> e...................  OK
-<inc,dec> h...................  OK
-<inc,dec> hl..................  OK
-<inc,dec> ix..................  OK
-<inc,dec> iy..................  OK
-<inc,dec> l...................  OK
-<inc,dec> (hl)................  OK
-<inc,dec> sp..................  OK
-<inc,dec> (<ix,iy>+1).........  OK
-<inc,dec> ixh.................  OK
-<inc,dec> ixl.................  OK
-<inc,dec> iyh.................  OK
-<inc,dec> iyl.................  OK
-ld <bc,de>,(nnnn).............  OK
-ld hl,(nnnn)..................  OK
-ld sp,(nnnn)..................  OK
-ld <ix,iy>,(nnnn).............  OK
-ld (nnnn),<bc,de>.............  OK
-ld (nnnn),hl..................  OK
-ld (nnnn),sp..................  OK
-ld (nnnn),<ix,iy>.............  OK
-ld <bc,de,hl,sp>,nnnn.........  OK
-ld <ix,iy>,nnnn...............  OK
-ld a,<(bc),(de)>..............  OK
-ld <b,c,d,e,h,l,(hl),a>,nn....  OK
-ld (<ix,iy>+1),nn.............  OK
-ld <b,c,d,e>,(<ix,iy>+1)......  OK
-ld <h,l>,(<ix,iy>+1)..........  OK
-ld a,(<ix,iy>+1)..............  OK
-ld <ixh,ixl,iyh,iyl>,nn.......  OK
-ld <bcdehla>,<bcdehla>........  OK
-ld <bcdexya>,<bcdexya>........  OK
-ld a,(nnnn) / ld (nnnn),a.....  OK
-ldd<r> (1)....................  OK
-ldd<r> (2)....................  OK
-ldi<r> (1)....................  OK
-ldi<r> (2)....................  OK
-neg...........................  OK
-<rrd,rld>.....................  OK
-<rlca,rrca,rla,rra>...........  OK
-shf/rot (<ix,iy>+1)...........  OK
-shf/rot <b,c,d,e,h,l,(hl),a>..  OK
-<set,res> n,<bcdehl(hl)a>.....  OK
-<set,res> n,(<ix,iy>+1).......  OK
-ld (<ix,iy>+1),<b,c,d,e>......  OK
-ld (<ix,iy>+1),<h,l>..........  OK
-ld (<ix,iy>+1),a..............  OK
-ld (<bc,de>),a................  OK
-Tests complete");
+        test_cpm("zexall.cim", "zexall.txt");
     }
     #[test]
     fn test_zexdoc() {
-        test_cpm("zexdoc.cim", "Z80doc instruction exerciser
-<adc,sbc> hl,<bc,de,hl,sp>....  OK
-add hl,<bc,de,hl,sp>..........  OK
-add ix,<bc,de,ix,sp>..........  OK
-add iy,<bc,de,iy,sp>..........  OK
-aluop a,nn....................  OK
-aluop a,<b,c,d,e,h,l,(hl),a>..  OK
-aluop a,<ixh,ixl,iyh,iyl>.....  OK
-aluop a,(<ix,iy>+1)...........  OK
-bit n,(<ix,iy>+1).............  OK
-bit n,<b,c,d,e,h,l,(hl),a>....  OK
-cpd<r>........................  OK
-cpi<r>........................  OK
-<daa,cpl,scf,ccf>.............  OK
-<inc,dec> a...................  OK
-<inc,dec> b...................  OK
-<inc,dec> bc..................  OK
-<inc,dec> c...................  OK
-<inc,dec> d...................  OK
-<inc,dec> de..................  OK
-<inc,dec> e...................  OK
-<inc,dec> h...................  OK
-<inc,dec> hl..................  OK
-<inc,dec> ix..................  OK
-<inc,dec> iy..................  OK
-<inc,dec> l...................  OK
-<inc,dec> (hl)................  OK
-<inc,dec> sp..................  OK
-<inc,dec> (<ix,iy>+1).........  OK
-<inc,dec> ixh.................  OK
-<inc,dec> ixl.................  OK
-<inc,dec> iyh.................  OK
-<inc,dec> iyl.................  OK
-ld <bc,de>,(nnnn).............  OK
-ld hl,(nnnn)..................  OK
-ld sp,(nnnn)..................  OK
-ld <ix,iy>,(nnnn).............  OK
-ld (nnnn),<bc,de>.............  OK
-ld (nnnn),hl..................  OK
-ld (nnnn),sp..................  OK
-ld (nnnn),<ix,iy>.............  OK
-ld <bc,de,hl,sp>,nnnn.........  OK
-ld <ix,iy>,nnnn...............  OK
-ld a,<(bc),(de)>..............  OK
-ld <b,c,d,e,h,l,(hl),a>,nn....  OK
-ld (<ix,iy>+1),nn.............  OK
-ld <b,c,d,e>,(<ix,iy>+1)......  OK
-ld <h,l>,(<ix,iy>+1)..........  OK
-ld a,(<ix,iy>+1)..............  OK
-ld <ixh,ixl,iyh,iyl>,nn.......  OK
-ld <bcdehla>,<bcdehla>........  OK
-ld <bcdexya>,<bcdexya>........  OK
-ld a,(nnnn) / ld (nnnn),a.....  OK
-ldd<r> (1)....................  OK
-ldd<r> (2)....................  OK
-ldi<r> (1)....................  OK
-ldi<r> (2)....................  OK
-neg...........................  OK
-<rrd,rld>.....................  OK
-<rlca,rrca,rla,rra>...........  OK
-shf/rot (<ix,iy>+1)...........  OK
-shf/rot <b,c,d,e,h,l,(hl),a>..  OK
-<set,res> n,<bcdehl(hl)a>.....  OK
-<set,res> n,(<ix,iy>+1).......  OK
-ld (<ix,iy>+1),<b,c,d,e>......  OK
-ld (<ix,iy>+1),<h,l>..........  OK
-ld (<ix,iy>+1),a..............  OK
-ld (<bc,de>),a................  OK
-Tests complete");
+        test_cpm("zexdoc.cim", "zexdoc.txt");
     }
 
     fn test_cpm(fname: &str, expected: &str) {
@@ -6799,56 +6661,53 @@ Tests complete");
             c: u8,
             d: u8,
             e: u8,
-            printed_bytes: Vec<char>,
+            printed_bytes: Vec<u8>,
         }
-        impl Z80_IO for IO {
+        impl Z80IO for IO {
             fn peek_byte(&mut self, addr: u16) -> u8 {
                 self.memory[addr as usize]
             }
-    
+
             fn write_byte(&mut self, addr: u16, val: u8) {
                 self.memory[addr as usize] = val;
             }
-    
-            fn peek_io(&mut self, addr: u16) -> u8 {
-                let op = self.c;
 
-                if op == 2 {
-                    self.printed_bytes.push(self.e as char);
-                } else if op == 9 {
-                    let mut addr = ((self.d as u16) << 8)|(self.e as u16);
-                    loop {
-                        let ch = self.memory[addr as usize] as char;
-                        addr = addr.wrapping_add(1);
-                        if ch == '$' {
-                            break;
+            fn peek_io(&mut self, _addr: u16) -> u8 {
+                match self.c {
+                    2 => self.printed_bytes.push(self.e),
+                    9 => {
+                        let mut addr = ((self.d as u16) << 8) | (self.e as u16);
+                        loop {
+                            let ch = self.memory[addr as usize];
+                            addr = addr.wrapping_add(1);
+                            if ch as char == '$' {
+                                break;
+                            }
+                            self.printed_bytes.push(ch);
                         }
-                        self.printed_bytes.push(ch as char);
                     }
+                    _ => (),
                 }
                 0xff
             }
-    
-            fn write_io(&mut self, addr: u16, val: u8) {
+
+            fn write_io(&mut self, _addr: u16, _val: u8) {
                 self.done = true;
             }
         }
 
         let rom = get_file_as_byte_vec(&format!("tests/z80/{}", fname));
-        let mut cpu = Z80::new(
-            IO {
-                memory: [0; 0x10000],
-                done: false,
-                c: 0,
-                d: 0,
-                e: 0,
-                printed_bytes: vec![],
-            },
-        );
+        let mut cpu = Z80::new(IO {
+            memory: [0; 0x10000],
+            done: false,
+            c: 0,
+            d: 0,
+            e: 0,
+            printed_bytes: vec![],
+        });
         for i in 0..rom.len() {
-            cpu.io.memory[i+0x100] = rom[i];
+            cpu.io.memory[i + 0x100] = rom[i];
         }
-        cpu.reset();
         cpu.pc = 0x100;
         cpu.io.memory[0] = 0xd3;
         cpu.io.memory[5] = 0xdb;
@@ -6862,9 +6721,19 @@ Tests complete");
                 break;
             }
         }
-        assert_eq!(
-            cpu.io.printed_bytes.into_iter().collect::<String>(),
-            expected,
-        );
+        let expected_txt = get_file_as_byte_vec(&format!("tests/z80/{}", expected));
+        let mut new_expected: Vec<u8> = vec![];
+        for b in expected_txt {
+            new_expected.push(b);
+            if b == 10 {
+                new_expected.push(13);
+            }
+        }
+        assert_eq!(cpu.io.printed_bytes, new_expected);
+        let final_str = new_expected
+            .into_iter()
+            .map(|val| val as char)
+            .collect::<String>();
+        println!("{}", final_str);
     }
 }

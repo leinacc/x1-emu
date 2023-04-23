@@ -46,15 +46,16 @@ const KEY_V: u8 = 0x56;
 const KEY_X: u8 = 0x58;
 const KEY_Y: u8 = 0x59;
 
-const KEYMOD_CTRL : u8 = 0x01;
+const KEYMOD_CTRL: u8 = 0x01;
 const KEYMOD_SHIFT: u8 = 0x02;
-const KEYMOD_KANA : u8 = 0x04;
-const KEYMOD_CAPS : u8 = 0x08;
-const KEYMOD_GRAPH: u8 = 0x10;
+// const KEYMOD_KANA : u8 = 0x04; // todo: graphical keyboard
+// const KEYMOD_CAPS : u8 = 0x08; // todo: graphical keyboard
+// const KEYMOD_GRAPH: u8 = 0x10; // todo: graphical keyboard
 
 pub struct Keyboard {
     pub key_pressed: u8,
-    keymods_active: u8,
+    // keymods_active: u8, // todo: graphical keyboard
+    ctrl_held: bool,
     shift_held: bool,
 
     last_press: u16,
@@ -64,7 +65,8 @@ impl Keyboard {
     pub fn new() -> Self {
         Self {
             key_pressed: 0x00,
-            keymods_active: 0xff,
+            // keymods_active: 0xff,
+            ctrl_held: false,
             shift_held: false,
             last_press: 0, // for check_shift
         }
@@ -84,14 +86,17 @@ impl Keyboard {
         ---- ---x CTRL ON
         */
         let mut ret = 0xff;
+        if self.ctrl_held {
+            ret &= 0xff - KEYMOD_CTRL;
+        }
         if self.shift_held {
-            ret &= 0xff-KEYMOD_SHIFT;
+            ret &= 0xff - KEYMOD_SHIFT;
         }
         if self.last_press != 0 {
-            ret &= 0xff-0x40;
+            ret &= 0xff - 0x40;
         }
         if (self.last_press & 0x100) != 0 {
-            ret &= 0xff-0x80;
+            ret &= 0xff - 0x80;
         }
         ret
     }
@@ -113,6 +118,7 @@ impl Keyboard {
         self.key_pressed = 0x00;
         self.last_press = 0x00;
         self.shift_held = false;
+        self.ctrl_held = false;
         self.set_key_pressed(input, VirtualKeyCode::Back, KEY_BACKSPACE);
         self.set_key_pressed(input, VirtualKeyCode::Return, KEY_ENTER);
         self.set_key_pressed(input, VirtualKeyCode::Right, KEY_RIGHT);
@@ -171,6 +177,10 @@ impl Keyboard {
             self.set_key_pressed(input, VirtualKeyCode::V, KEY_V);
             self.set_key_pressed(input, VirtualKeyCode::X, KEY_X);
             self.set_key_pressed(input, VirtualKeyCode::Y, KEY_Y);
+        }
+
+        if input.held_control() {
+            self.ctrl_held = true;
         }
     }
 }

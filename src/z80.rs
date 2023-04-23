@@ -1,4 +1,4 @@
-pub trait Z80_IO {
+pub trait Z80IO {
     fn peek_byte(&mut self, addr: u16) -> u8;
     fn write_byte(&mut self, addr: u16, val: u8);
     fn peek_io(&mut self, addr: u16) -> u8;
@@ -7,10 +7,10 @@ pub trait Z80_IO {
 
 #[derive(PartialEq)]
 pub enum FDEPhase {
-    INIT,
-    READ_MEM,
-    FETCH,
-    EXECUTE,
+    Init,
+    ReadMem,
+    Fetch,
+    Execute,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -21,71 +21,71 @@ enum Prefix {
 }
 
 enum Cycle {
-    ADDR_IS_A_LOW,
-    ADDR_IS_BC,
-    ADDR_IS_DE,
-    ADDR_IS_DEC_B_C,
-    ADDR_IS_IM2_HIGH,
-    ADDR_IS_IM2_LOW,
-    ADDR_IS_PREFIXED_HL,
-    ADDR_IS_SP0,
-    ADDR_IS_SP1,
-    CALL_COND,
-    CHECK_IRQ_DATA,
-    CHECK_REP,
-    CHECK_RET,
-    DEC_LOW,
-    FETCH_HIGH,
-    FETCH_IND_HIGH,
-    FETCH_IND_LOW,
-    FETCH_LOW,
-    INC_LOW,
-    IND_INIT_HI,
-    IND_INIT_LO,
-    INIT,
-    JR_COND,
-    NOP,
-    PEEK_BYTE,
-    PEEK_HIGH,
-    PEEK_LOW,
-    POP_STACK_HIGH,
-    POP_STACK_LOW,
-    PUSH_STACK,
-    READ_IO,
-    READ_MEM,
-    RES_EXT,
-    RL_DATA,
-    RLC_DATA,
-    RLD_DATA,
-    RR_DATA,
-    RRC_DATA,
-    RRD_DATA,
-    SET_EXT,
-    SET_WORD_HIGH,
-    SET_WORD_LOW,
-    SLA_DATA,
-    SLL_DATA,
-    SRA_DATA,
-    SRL_DATA,
-    UNWRITE,
-    WRITE_A,
-    WRITE_B,
-    WRITE_C,
-    WRITE_D,
-    WRITE_E,
-    WRITE_F,
-    WRITE_H,
-    WRITE_HIGH,
-    WRITE_IO_LOW,
-    WRITE_IO_U8(u8),
-    WRITE_L,
-    WRITE_LOW,
-    WRITE_PC_HIGH,
-    WRITE_PC_LOW,
-    WRITE_PREFIXED_H,
-    WRITE_PREFIXED_L,
-    WRITE_SP_HIGH,
-    WRITE_SP_LOW,
+    AddrIsALow,
+    AddrIsBC,
+    AddrIsDE,
+    AddrIsDecBC,
+    AddrIsIM2High,
+    AddrIsIM2Low,
+    AddrIsPrefixedHL,
+    AddrIsSP0,
+    AddrIsSP1,
+    CallCond,
+    CheckIrqData,
+    CheckRep,
+    CheckRet,
+    DecLow,
+    FetchHigh,
+    FetchIndHigh,
+    FetchIndLow,
+    FetchLow,
+    IncLow,
+    IndInitHi,
+    IndInitLo,
+    Init,
+    JrCond,
+    Nop,
+    PeekByte,
+    PeekHigh,
+    PeekLow,
+    PopStackHigh,
+    PopStackLow,
+    PushStack,
+    ReadIO,
+    ReadMem,
+    ResExt,
+    RLData,
+    RLCData,
+    RLDData,
+    RRData,
+    RRCData,
+    RRDData,
+    SetExt,
+    SetWordHigh,
+    SetWordLow,
+    SLAData,
+    SLLData,
+    SRAData,
+    SRLData,
+    Unwrite,
+    WriteA,
+    WriteB,
+    WriteC,
+    WriteD,
+    WriteE,
+    WriteF,
+    WriteH,
+    WriteHigh,
+    WriteIOLow,
+    WriteIOU8(u8),
+    WriteL,
+    WriteLow,
+    WritePCHigh,
+    WritePCLow,
+    WritePrefixedH,
+    WritePrefixedL,
+    WriteSPHigh,
+    WriteSPLow,
 }
 
 const FLAG_S: u8 = 0x80; // sign
@@ -95,7 +95,7 @@ const FLAG_PV: u8 = 0x04; // parity/overflow
 const FLAG_N: u8 = 0x02; // add/subtract
 const FLAG_C: u8 = 0x01; // carry
 
-pub struct Z80<T: Z80_IO> {
+pub struct Z80<T: Z80IO> {
     pub pc: u16,
     pub sp: u16,
     pub a: u8,
@@ -184,7 +184,7 @@ fn word(high: u8, low: u8) -> u16 {
     ((high as u16) << 8) | (low as u16)
 }
 
-fn bit<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn bit<T: Z80IO>(cpu: &mut Z80<T>) {
     let bit = cpu.group_8;
     cpu.f &= 0xff - (FLAG_N | FLAG_PV | 0x28 | FLAG_Z | FLAG_S);
 
@@ -204,7 +204,7 @@ fn bit<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn add_prefixed_hl_rp<T: Z80_IO>(cpu: &mut Z80<T>, rp: u16) {
+fn add_prefixed_hl_rp<T: Z80IO>(cpu: &mut Z80<T>, rp: u16) {
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28);
     let base = cpu.prefixed_hl();
     let new = base.wrapping_add(rp);
@@ -225,7 +225,7 @@ fn add_prefixed_hl_rp<T: Z80_IO>(cpu: &mut Z80<T>, rp: u16) {
     cpu.f |= ((new >> 8) as u8) & 0x28;
 }
 
-fn ccf<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn ccf<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.f &= 0xff - (FLAG_N | FLAG_H);
     if cpu.flag(FLAG_C) {
         cpu.f |= FLAG_H;
@@ -237,13 +237,13 @@ fn ccf<T: Z80_IO>(cpu: &mut Z80<T>) {
     cpu.f |= cpu.a & 0x28;
 }
 
-fn cpl<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn cpl<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.f &= 0xff - 0x28;
     cpu.a ^= 0xff;
     cpu.f |= (cpu.a & 0x28) | FLAG_N | FLAG_H;
 }
 
-fn daa<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn daa<T: Z80IO>(cpu: &mut Z80<T>) {
     let a = cpu.a;
     let n = cpu.flag(FLAG_N);
     let hc = cpu.flag(FLAG_H);
@@ -287,30 +287,30 @@ fn dec_word(high: &mut u8, low: &mut u8) {
     }
 }
 
-fn di<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn di<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.iff1 = 0;
     cpu.iff2 = 0;
 }
 
-fn ei<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn ei<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.ei = 2;
     cpu.iff1 = 1;
     cpu.iff2 = 1;
 }
 
-fn ex_af_af_<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn ex_af_af_<T: Z80IO>(cpu: &mut Z80<T>) {
     let new_shadow = word(cpu.a, cpu.f);
     cpu.a = (cpu.af_ >> 8) as u8;
     cpu.f = cpu.af_ as u8;
     cpu.af_ = new_shadow;
 }
 
-fn ex_de_hl<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn ex_de_hl<T: Z80IO>(cpu: &mut Z80<T>) {
     std::mem::swap::<u8>(&mut cpu.d, &mut cpu.h);
     std::mem::swap::<u8>(&mut cpu.e, &mut cpu.l);
 }
 
-fn exx<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn exx<T: Z80IO>(cpu: &mut Z80<T>) {
     let new_shadow = cpu.bc();
     cpu.b = (cpu.bc_ >> 8) as u8;
     cpu.c = cpu.bc_ as u8;
@@ -327,8 +327,8 @@ fn exx<T: Z80_IO>(cpu: &mut Z80<T>) {
     cpu.hl_ = new_shadow;
 }
 
-fn get_cb_op<T: Z80_IO>(cpu: &mut Z80<T>) {
-    cpu.phase = FDEPhase::EXECUTE;
+fn get_cb_op<T: Z80IO>(cpu: &mut Z80<T>) {
+    cpu.phase = FDEPhase::Execute;
     if cpu.prefix == Prefix::NONE {
         cpu.addr_bus = Some(word(cpu.i, cpu.r));
     }
@@ -340,149 +340,149 @@ fn get_cb_op<T: Z80_IO>(cpu: &mut Z80<T>) {
     cpu.microcodes = match op {
         // eg rlc (hl)
         0x00..=0x07 if (op == 0x06 || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::RLC_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::RLCData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg rrc (hl)
         0x08..=0x0f if (op == 0x0e || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::RRC_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::RRCData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg rl (hl)
         0x10..=0x17 if (op == 0x16 || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::RL_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::RLData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg rr (hl)
         0x18..=0x1f if (op == 0x1e || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::RR_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::RRData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg sla (hl)
         0x20..=0x27 if (op == 0x26 || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::SLA_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::SLAData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg sra (hl)
         0x28..=0x2f if (op == 0x2e || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::SRA_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::SRAData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg sll (hl)
         0x30..=0x37 if (op == 0x36 || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::SLL_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::SLLData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg srl (hl)
         0x38..=0x3f if (op == 0x3e || cpu.prefix != Prefix::NONE) => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_BYTE,
-            Cycle::SRL_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekByte,
+            Cycle::SRLData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg bit 0, (ix+d),
         0x40..=0x7f if cpu.prefix != Prefix::NONE => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::NOP,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::Nop,
         ],
         // eg bit 0, (hl)
         0x46 | 0x4e | 0x56 | 0x5e | 0x66 | 0x6e | 0x76 | 0x7e if cpu.prefix == Prefix::NONE => {
             vec![
-                Cycle::ADDR_IS_PREFIXED_HL,
-                Cycle::READ_MEM,
-                Cycle::PEEK_LOW,
-                Cycle::NOP,
+                Cycle::AddrIsPrefixedHL,
+                Cycle::ReadMem,
+                Cycle::PeekLow,
+                Cycle::Nop,
             ]
         }
         // eg res 0, (ix+d),
         0x80..=0xbf if cpu.prefix != Prefix::NONE => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::RES_EXT,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::ResExt,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg res 0, (hl)
         0x86 | 0x8e | 0x96 | 0x9e | 0xa6 | 0xae | 0xb6 | 0xbe if cpu.prefix == Prefix::NONE => {
             vec![
-                Cycle::ADDR_IS_PREFIXED_HL,
-                Cycle::READ_MEM,
-                Cycle::PEEK_LOW,
-                Cycle::RES_EXT,
-                Cycle::NOP,
-                Cycle::WRITE_LOW,
-                Cycle::UNWRITE,
+                Cycle::AddrIsPrefixedHL,
+                Cycle::ReadMem,
+                Cycle::PeekLow,
+                Cycle::ResExt,
+                Cycle::Nop,
+                Cycle::WriteLow,
+                Cycle::Unwrite,
             ]
         }
         // eg set 0, (ix+d)
         0xc0..=0xff if cpu.prefix != Prefix::NONE => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::SET_EXT,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::SetExt,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg set 0, (hl)
         0xc6 | 0xce | 0xd6 | 0xde | 0xe6 | 0xee | 0xf6 | 0xfe if cpu.prefix == Prefix::NONE => {
             vec![
-                Cycle::ADDR_IS_PREFIXED_HL,
-                Cycle::READ_MEM,
-                Cycle::PEEK_LOW,
-                Cycle::SET_EXT,
-                Cycle::NOP,
-                Cycle::WRITE_LOW,
-                Cycle::UNWRITE,
+                Cycle::AddrIsPrefixedHL,
+                Cycle::ReadMem,
+                Cycle::PeekLow,
+                Cycle::SetExt,
+                Cycle::Nop,
+                Cycle::WriteLow,
+                Cycle::Unwrite,
             ]
         }
         _ => vec![],
     };
-    cpu.microcodes.insert(0, Cycle::NOP);
+    cpu.microcodes.insert(0, Cycle::Nop);
     if cpu.prefix != Prefix::NONE {
-        cpu.microcodes.insert(0, Cycle::NOP);
+        cpu.microcodes.insert(0, Cycle::Nop);
     }
     cpu.side_effect = match op {
         0x00..=0x05 | 0x07 => Some(|cpu| {
@@ -578,8 +578,8 @@ fn get_cb_op<T: Z80_IO>(cpu: &mut Z80<T>) {
     cpu.is_ext = true;
 }
 
-fn get_ed_op<T: Z80_IO>(cpu: &mut Z80<T>) {
-    cpu.phase = FDEPhase::EXECUTE;
+fn get_ed_op<T: Z80IO>(cpu: &mut Z80<T>) {
+    cpu.phase = FDEPhase::Execute;
     cpu.addr_bus = Some(word(cpu.i, cpu.r));
     let op = cpu.data_bus.unwrap();
 
@@ -588,198 +588,195 @@ fn get_ed_op<T: Z80_IO>(cpu: &mut Z80<T>) {
 
     cpu.microcodes = match op {
         // eg in b, (c)
-        0x40 | 0x48 | 0x50 | 0x58 | 0x60 | 0x68 | 0x70 | 0x78 => vec![
-            Cycle::ADDR_IS_BC,
-            Cycle::NOP,
-            Cycle::READ_IO,
-            Cycle::PEEK_BYTE,
-        ],
+        0x40 | 0x48 | 0x50 | 0x58 | 0x60 | 0x68 | 0x70 | 0x78 => {
+            vec![Cycle::AddrIsBC, Cycle::Nop, Cycle::ReadIO, Cycle::PeekByte]
+        }
         // eg out (c), b
         0x41 | 0x49 | 0x51 | 0x59 | 0x61 | 0x69 | 0x79 => vec![
-            Cycle::ADDR_IS_BC,
-            Cycle::NOP,
-            Cycle::WRITE_IO_U8(cpu.prefixed_group_reg_r(cpu.group_8)),
-            Cycle::UNWRITE,
+            Cycle::AddrIsBC,
+            Cycle::Nop,
+            Cycle::WriteIOU8(cpu.prefixed_group_reg_r(cpu.group_8)),
+            Cycle::Unwrite,
         ],
         // eg sbc hl, bc
         0x42 | 0x4a | 0x52 | 0x5a | 0x62 | 0x6a | 0x72 | 0x7a => vec![
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
         ],
         // ld (nn), bc
         0x43 => vec![
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_LOW,
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_HIGH,
-            Cycle::SET_WORD_LOW,
-            Cycle::WRITE_C,
-            Cycle::UNWRITE,
-            Cycle::SET_WORD_HIGH,
-            Cycle::WRITE_B,
-            Cycle::UNWRITE,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchLow,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchHigh,
+            Cycle::SetWordLow,
+            Cycle::WriteC,
+            Cycle::Unwrite,
+            Cycle::SetWordHigh,
+            Cycle::WriteB,
+            Cycle::Unwrite,
         ],
         // eg retn
         0x45 | 0x4d | 0x55 | 0x5d | 0x65 | 0x6d | 0x75 | 0x7d => vec![
-            Cycle::POP_STACK_LOW,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::POP_STACK_HIGH,
-            Cycle::READ_MEM,
-            Cycle::PEEK_HIGH,
+            Cycle::PopStackLow,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::PopStackHigh,
+            Cycle::ReadMem,
+            Cycle::PeekHigh,
         ],
         // eg ld i, a
-        0x47 | 0x4f | 0x57 | 0x5f => vec![Cycle::NOP],
+        0x47 | 0x4f | 0x57 | 0x5f => vec![Cycle::Nop],
         // eg ld bc, (nn)
         0x4b | 0x5b | 0x6b | 0x7b => vec![
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_LOW,
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_HIGH,
-            Cycle::IND_INIT_LO,
-            Cycle::READ_MEM,
-            Cycle::FETCH_IND_LOW,
-            Cycle::IND_INIT_HI,
-            Cycle::READ_MEM,
-            Cycle::FETCH_IND_HIGH,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchLow,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchHigh,
+            Cycle::IndInitLo,
+            Cycle::ReadMem,
+            Cycle::FetchIndLow,
+            Cycle::IndInitHi,
+            Cycle::ReadMem,
+            Cycle::FetchIndHigh,
         ],
         // ld (nn), de
         0x53 => vec![
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_LOW,
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_HIGH,
-            Cycle::SET_WORD_LOW,
-            Cycle::WRITE_E,
-            Cycle::UNWRITE,
-            Cycle::SET_WORD_HIGH,
-            Cycle::WRITE_D,
-            Cycle::UNWRITE,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchLow,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchHigh,
+            Cycle::SetWordLow,
+            Cycle::WriteE,
+            Cycle::Unwrite,
+            Cycle::SetWordHigh,
+            Cycle::WriteD,
+            Cycle::Unwrite,
         ],
         // ld (nn), hl
         0x63 => vec![
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_LOW,
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_HIGH,
-            Cycle::SET_WORD_LOW,
-            Cycle::WRITE_L,
-            Cycle::UNWRITE,
-            Cycle::SET_WORD_HIGH,
-            Cycle::WRITE_H,
-            Cycle::UNWRITE,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchLow,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchHigh,
+            Cycle::SetWordLow,
+            Cycle::WriteL,
+            Cycle::Unwrite,
+            Cycle::SetWordHigh,
+            Cycle::WriteH,
+            Cycle::Unwrite,
         ],
         // rrd
         0x67 => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::RRD_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::RRDData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
         ],
         // rld
         0x6f => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::RLD_DATA,
-            Cycle::NOP,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::RLDData,
+            Cycle::Nop,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
         ],
         // ld (nn), sp
         0x73 => vec![
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_LOW,
-            Cycle::INIT,
-            Cycle::READ_MEM,
-            Cycle::FETCH_HIGH,
-            Cycle::SET_WORD_LOW,
-            Cycle::WRITE_SP_LOW,
-            Cycle::UNWRITE,
-            Cycle::SET_WORD_HIGH,
-            Cycle::WRITE_SP_HIGH,
-            Cycle::UNWRITE,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchLow,
+            Cycle::Init,
+            Cycle::ReadMem,
+            Cycle::FetchHigh,
+            Cycle::SetWordLow,
+            Cycle::WriteSPLow,
+            Cycle::Unwrite,
+            Cycle::SetWordHigh,
+            Cycle::WriteSPHigh,
+            Cycle::Unwrite,
         ],
         // eg out (c), 0
         0x71 => vec![
-            Cycle::ADDR_IS_BC,
-            Cycle::NOP,
-            Cycle::WRITE_IO_U8(0),
-            Cycle::UNWRITE,
+            Cycle::AddrIsBC,
+            Cycle::Nop,
+            Cycle::WriteIOU8(0),
+            Cycle::Unwrite,
         ],
         // eg ldi
         0xa0 | 0xa8 | 0xb0 | 0xb8 => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::ADDR_IS_DE,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
-            Cycle::NOP,
-            Cycle::NOP,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::AddrIsDE,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
+            Cycle::Nop,
+            Cycle::Nop,
         ],
         // eg cpi
         0xa1 | 0xa9 | 0xb1 | 0xb9 => vec![
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
-            Cycle::NOP,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
+            Cycle::Nop,
         ],
         // eg ini
         0xa2 | 0xaa | 0xb2 | 0xba => vec![
-            Cycle::NOP,
-            Cycle::ADDR_IS_BC,
-            Cycle::NOP,
-            Cycle::READ_IO,
-            Cycle::PEEK_LOW,
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::WRITE_LOW,
-            Cycle::UNWRITE,
+            Cycle::Nop,
+            Cycle::AddrIsBC,
+            Cycle::Nop,
+            Cycle::ReadIO,
+            Cycle::PeekLow,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::WriteLow,
+            Cycle::Unwrite,
         ],
         // eg outi
         0xa3 | 0xab | 0xb3 | 0xbb => vec![
-            Cycle::NOP,
-            Cycle::ADDR_IS_PREFIXED_HL,
-            Cycle::READ_MEM,
-            Cycle::PEEK_LOW,
-            Cycle::ADDR_IS_DEC_B_C,
-            Cycle::NOP,
-            Cycle::WRITE_IO_LOW,
-            Cycle::UNWRITE,
+            Cycle::Nop,
+            Cycle::AddrIsPrefixedHL,
+            Cycle::ReadMem,
+            Cycle::PeekLow,
+            Cycle::AddrIsDecBC,
+            Cycle::Nop,
+            Cycle::WriteIOLow,
+            Cycle::Unwrite,
         ],
         _ => vec![],
     };
-    cpu.microcodes.insert(0, Cycle::NOP);
+    cpu.microcodes.insert(0, Cycle::Nop);
     if op >= 0xb0 {
         cpu.microcodes.pop();
-        cpu.microcodes.push(Cycle::CHECK_REP);
+        cpu.microcodes.push(Cycle::CheckRep);
     }
     cpu.side_effect = match op {
         0x40 | 0x48 | 0x50 | 0x58 | 0x60 | 0x68 | 0x70 | 0x78 => Some(in_reg_bc),
@@ -840,15 +837,44 @@ fn get_ed_op<T: Z80_IO>(cpu: &mut Z80<T>) {
         cpu.p = 1;
     }
     cpu.set_q = match op {
-        0x40 | 0x48 | 0x50 | 0x58 | 0x60 | 0x68 | 0x70 | 0x78 | 0x42 | 0x4a | 0x52 | 0x5a
-        | 0x62 | 0x6a | 0x72 | 0x7a | 0x44 | 0x4c | 0x54 | 0x5c | 0x64 | 0x6c | 0x74 | 0x7c
-        | 0x57 | 0x5f | 0x67 | 0x6f | 0xa0..=0xa3 | 0xa8..=0xab | 0xb0..=0xb3 | 0xb8..=0xbb => true,
+        0x40
+        | 0x48
+        | 0x50
+        | 0x58
+        | 0x60
+        | 0x68
+        | 0x70
+        | 0x78
+        | 0x42
+        | 0x4a
+        | 0x52
+        | 0x5a
+        | 0x62
+        | 0x6a
+        | 0x72
+        | 0x7a
+        | 0x44
+        | 0x4c
+        | 0x54
+        | 0x5c
+        | 0x64
+        | 0x6c
+        | 0x74
+        | 0x7c
+        | 0x57
+        | 0x5f
+        | 0x67
+        | 0x6f
+        | 0xa0..=0xa3
+        | 0xa8..=0xab
+        | 0xb0..=0xb3
+        | 0xb8..=0xbb => true,
         _ => false,
     };
     cpu.is_ext = true;
 }
 
-fn prefixed_hl_is_word<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn prefixed_hl_is_word<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.wz = word(cpu.high_byte, cpu.low_byte);
     match cpu.prefix {
         Prefix::DD => cpu.ix = cpu.wz,
@@ -860,7 +886,7 @@ fn prefixed_hl_is_word<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn in_reg_bc<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn in_reg_bc<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.f &= 0xff - (FLAG_N | FLAG_H | 0x28 | FLAG_Z | FLAG_S);
     let val = cpu.data_bus.unwrap();
     if cpu.group_8 != 6 {
@@ -884,7 +910,7 @@ fn inc_word(high: &mut u8, low: &mut u8) {
     }
 }
 
-fn jp_cond<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn jp_cond<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.wz = word(cpu.high_byte, cpu.low_byte);
     if match cpu.group_8 {
         0 => !cpu.flag(FLAG_Z),
@@ -901,7 +927,7 @@ fn jp_cond<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rla<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn rla<T: Z80IO>(cpu: &mut Z80<T>) {
     let high_bit = bit_set(cpu.a, 7);
     let carry = cpu.flag(FLAG_C);
     cpu.a <<= 1;
@@ -915,7 +941,7 @@ fn rla<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rlca<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn rlca<T: Z80IO>(cpu: &mut Z80<T>) {
     let high_bit = bit_set(cpu.a, 7);
     cpu.a <<= 1;
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28);
@@ -926,7 +952,7 @@ fn rlca<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rra<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn rra<T: Z80IO>(cpu: &mut Z80<T>) {
     let low_bit = bit_set(cpu.a, 0);
     let carry = cpu.flag(FLAG_C);
     cpu.a >>= 1;
@@ -940,7 +966,7 @@ fn rra<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rrca<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn rrca<T: Z80IO>(cpu: &mut Z80<T>) {
     let low_bit = bit_set(cpu.a, 0);
     cpu.a >>= 1;
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28);
@@ -951,12 +977,12 @@ fn rrca<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rst<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn rst<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.wz = cpu.group_8 as u16 * 8;
     cpu.pc = cpu.wz;
 }
 
-fn adc_hl_rp<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn adc_hl_rp<T: Z80IO>(cpu: &mut Z80<T>) {
     let carry = cpu.f & FLAG_C;
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_PV | 0x28 | FLAG_H | FLAG_Z | FLAG_S);
     let hl = cpu.hl();
@@ -1001,7 +1027,7 @@ fn adc_hl_rp<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn sbc_hl_rp<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn sbc_hl_rp<T: Z80IO>(cpu: &mut Z80<T>) {
     let carry: u8 = cpu.f & FLAG_C;
     cpu.f &= 0xff - (FLAG_C | FLAG_PV | 0x28 | FLAG_H | FLAG_Z | FLAG_S);
     let hl = cpu.hl();
@@ -1046,7 +1072,7 @@ fn sbc_hl_rp<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn scf<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn scf<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.f &= 0xff - (FLAG_N | FLAG_H);
     if cpu.q != 0 {
         cpu.f &= 0xff - 0x28;
@@ -1054,22 +1080,22 @@ fn scf<T: Z80_IO>(cpu: &mut Z80<T>) {
     cpu.f |= FLAG_C | (cpu.a & 0x28);
 }
 
-fn set_af<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn set_af<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.a = cpu.high_byte;
     cpu.f = cpu.low_byte;
 }
 
-fn set_bc<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn set_bc<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.b = cpu.high_byte;
     cpu.c = cpu.low_byte;
 }
 
-fn set_de<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn set_de<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.d = cpu.high_byte;
     cpu.e = cpu.low_byte;
 }
 
-fn set_prefixed_hl<T: Z80_IO>(cpu: &mut Z80<T>) {
+fn set_prefixed_hl<T: Z80IO>(cpu: &mut Z80<T>) {
     match cpu.prefix {
         Prefix::DD => cpu.ix = word(cpu.high_byte, cpu.low_byte),
         Prefix::FD => cpu.iy = word(cpu.high_byte, cpu.low_byte),
@@ -1080,7 +1106,7 @@ fn set_prefixed_hl<T: Z80_IO>(cpu: &mut Z80<T>) {
     }
 }
 
-impl<T: Z80_IO> Z80<T> {
+impl<T: Z80IO> Z80<T> {
     pub fn new(io: T) -> Z80<T> {
         Z80 {
             pc: 0,
@@ -1112,7 +1138,7 @@ impl<T: Z80_IO> Z80<T> {
             io: io,
             addr_bus: None,
             data_bus: None,
-            phase: FDEPhase::INIT,
+            phase: FDEPhase::Init,
             microcodes: vec![],
             read_pin: false,
             write_pin: false,
@@ -1428,7 +1454,7 @@ impl<T: Z80_IO> Z80<T> {
             self.wz = self.wz.wrapping_sub(1);
         }
         dec_word(&mut self.b, &mut self.c);
-        self.f &= 0xff - (FLAG_C|FLAG_PV|0x28);
+        self.f &= 0xff - (FLAG_C | FLAG_PV | 0x28);
         self.f |= carry;
         if self.bc() != 0 {
             self.f |= FLAG_PV;
@@ -1446,7 +1472,7 @@ impl<T: Z80_IO> Z80<T> {
         if self.bc() != 0 && !self.flag(FLAG_Z) {
             self.wz = self.pc.wrapping_sub(1);
             self.pc = self.pc.wrapping_sub(2);
-            self.f &= 0xff-0x28;
+            self.f &= 0xff - 0x28;
             self.f |= ((self.pc >> 8) & 0x28) as u8;
         }
     }
@@ -1498,25 +1524,35 @@ impl<T: Z80_IO> Z80<T> {
             self.wz = self.bc().wrapping_sub(1);
         }
         self.b = self.b.wrapping_sub(1);
-        self.f &= 0xff - (FLAG_C|FLAG_N|FLAG_H|0x28|FLAG_Z|FLAG_S);
+        self.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28 | FLAG_Z | FLAG_S);
         self.f |= self.b & 0x28;
 
-        let val = if inc {self.c.wrapping_add(1)} else {self.c.wrapping_sub(1)};
-        let val16 = if inc {(self.c as u16) + 1} else {val as u16};
+        let val = if inc {
+            self.c.wrapping_add(1)
+        } else {
+            self.c.wrapping_sub(1)
+        };
+        let val16 = if inc { (self.c as u16) + 1 } else { val as u16 };
         self.set_parity(val.wrapping_add(self.low_byte) & 7 ^ self.b);
-        if self.low_byte >= 0x80 {self.f |= FLAG_N}
-        if (val16 + self.low_byte as u16) >= 0x100 {
-            self.f |= FLAG_C|FLAG_H;
+        if self.low_byte >= 0x80 {
+            self.f |= FLAG_N
         }
-        if self.b == 0 {self.f |= FLAG_Z};
-        if self.b >= 0x80 {self.f |= FLAG_S};
+        if (val16 + self.low_byte as u16) >= 0x100 {
+            self.f |= FLAG_C | FLAG_H;
+        }
+        if self.b == 0 {
+            self.f |= FLAG_Z
+        };
+        if self.b >= 0x80 {
+            self.f |= FLAG_S
+        };
     }
 
     fn inidr(&mut self, inc: bool) {
         self.inid(inc);
         if self.b != 0 {
             self.pc = self.pc.wrapping_sub(2);
-            self.f &= 0xff-0x28;
+            self.f &= 0xff - 0x28;
             self.f |= ((self.pc >> 8) & 0x28) as u8;
 
             self.initotidr_jump_flags();
@@ -1527,7 +1563,7 @@ impl<T: Z80_IO> Z80<T> {
         let res: u8;
 
         if self.flag(FLAG_C) {
-            self.f &= 0xff-FLAG_H;
+            self.f &= 0xff - FLAG_H;
             if (self.low_byte & 0x80) != 0 {
                 res = (self.b.wrapping_sub(1) & 7) ^ 1;
                 if (self.b & 0xf) == 0x0 {
@@ -1542,14 +1578,14 @@ impl<T: Z80_IO> Z80<T> {
         } else {
             res = (self.b & 7) ^ 1;
         }
-        
+
         if parity(res) {
             self.f ^= FLAG_PV;
         }
     }
 
     fn ldid(&mut self, inc: bool) {
-        self.f &= 0xff-(FLAG_N|FLAG_PV|FLAG_H|0x28);
+        self.f &= 0xff - (FLAG_N | FLAG_PV | FLAG_H | 0x28);
         let res = self.a.wrapping_add(self.low_byte);
         if (res & 8) != 0 {
             self.f |= 0x08;
@@ -1575,7 +1611,7 @@ impl<T: Z80_IO> Z80<T> {
         if self.bc() != 0 {
             self.wz = self.pc.wrapping_sub(1);
             self.pc = self.pc.wrapping_sub(2);
-            self.f &= 0xff-0x28;
+            self.f &= 0xff - 0x28;
             self.f |= ((self.pc >> 8) & 0x28) as u8;
         }
     }
@@ -1588,24 +1624,30 @@ impl<T: Z80_IO> Z80<T> {
             dec_word(&mut self.h, &mut self.l);
             self.wz = self.bc().wrapping_sub(1);
         }
-        self.f &= 0xff - (FLAG_C|FLAG_N|FLAG_H|0x28|FLAG_Z|FLAG_S);
+        self.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28 | FLAG_Z | FLAG_S);
         self.f |= self.b & 0x28;
 
         let res = self.l.wrapping_add(self.low_byte) & 7 ^ self.b;
         self.set_parity(res);
-        if self.low_byte >= 0x80 {self.f |= FLAG_N}
-        if (self.l as u16 + self.low_byte as u16) >= 0x100 {
-            self.f |= FLAG_C|FLAG_H;
+        if self.low_byte >= 0x80 {
+            self.f |= FLAG_N
         }
-        if self.b == 0 {self.f |= FLAG_Z};
-        if self.b >= 0x80 {self.f |= FLAG_S};
+        if (self.l as u16 + self.low_byte as u16) >= 0x100 {
+            self.f |= FLAG_C | FLAG_H;
+        }
+        if self.b == 0 {
+            self.f |= FLAG_Z
+        };
+        if self.b >= 0x80 {
+            self.f |= FLAG_S
+        };
     }
 
     fn otidr(&mut self, inc: bool) {
         self.outid(inc);
         if self.b != 0 {
             self.pc = self.pc.wrapping_sub(2);
-            self.f &= 0xff-0x28;
+            self.f &= 0xff - 0x28;
             self.f |= ((self.pc >> 8) & 0x28) as u8;
 
             self.initotidr_jump_flags();
@@ -1875,8 +1917,8 @@ impl<T: Z80_IO> Z80<T> {
     }
 
     pub fn reset(&mut self) {
-        self.phase = FDEPhase::EXECUTE;
-        self.microcodes = vec![Cycle::NOP, Cycle::NOP, Cycle::NOP];
+        self.phase = FDEPhase::Execute;
+        self.microcodes = vec![Cycle::Nop, Cycle::Nop, Cycle::Nop];
         self.ei = 0;
         self.iff1 = 0;
         self.iff2 = 0;
@@ -1895,7 +1937,7 @@ impl<T: Z80_IO> Z80<T> {
     pub fn step(&mut self) -> u32 {
         self.tick();
         let mut cyc = 1;
-        while self.phase != FDEPhase::INIT {
+        while self.phase != FDEPhase::Init {
             self.tick();
             cyc += 1;
         }
@@ -1904,8 +1946,8 @@ impl<T: Z80_IO> Z80<T> {
 
     pub fn tick(&mut self) {
         match self.phase {
-            FDEPhase::INIT => {
-                self.phase = FDEPhase::READ_MEM;
+            FDEPhase::Init => {
+                self.phase = FDEPhase::ReadMem;
                 self.addr_bus = Some(self.pc);
                 self.data_bus = None;
                 self.read_pin = false;
@@ -1917,13 +1959,13 @@ impl<T: Z80_IO> Z80<T> {
                 self.is_ext = false;
                 self.prefix = Prefix::NONE;
             }
-            FDEPhase::READ_MEM => {
-                self.phase = FDEPhase::FETCH;
+            FDEPhase::ReadMem => {
+                self.phase = FDEPhase::Fetch;
                 self.read_pin = true;
                 self.memory_pin = true;
             }
-            FDEPhase::FETCH => {
-                self.phase = FDEPhase::EXECUTE;
+            FDEPhase::Fetch => {
+                self.phase = FDEPhase::Execute;
 
                 self.read_byte();
                 self.addr_bus = Some(word(self.i, self.r));
@@ -1936,279 +1978,277 @@ impl<T: Z80_IO> Z80<T> {
                     // ld bc, nn | ld de, nn | ld hl, nn | ld sp, nn | jp nz, nn | jp nn | jp z, nn | jp nc, nn | jp c, nn | jp pe, nn | jp po, nn | jp p, nn | jp m, nn
                     0x01 | 0x11 | 0x21 | 0x31 | 0xc2 | 0xc3 | 0xca | 0xd2 | 0xda | 0xe2 | 0xea
                     | 0xf2 | 0xfa => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_HIGH,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchHigh,
                     ],
                     // ld (bc), a
-                    0x02 => vec![Cycle::ADDR_IS_BC, Cycle::WRITE_A, Cycle::UNWRITE],
+                    0x02 => vec![Cycle::AddrIsBC, Cycle::WriteA, Cycle::Unwrite],
                     // inc bc | dec bc | inc de | dec de | inc hl | dec hl | inc sp | dec sp | ld sp, hl
                     0x03 | 0x0b | 0x13 | 0x1b | 0x23 | 0x2b | 0x33 | 0x3b | 0xf9 => {
-                        vec![Cycle::NOP, Cycle::NOP]
+                        vec![Cycle::Nop, Cycle::Nop]
                     }
                     // ld b, n | ld c, n | ld d, n | ld e, n | ld h, n | ld l, n | ld a, n | add a, n | prefix | adc a, n | sub n | sbc a, n | and n | prefix | xor n | or n | cp n
                     0x06 | 0x0e | 0x16 | 0x1e | 0x26 | 0x2e | 0x3e | 0xc6 | 0xcb | 0xce | 0xd6
                     | 0xde | 0xe6 | 0xed | 0xee | 0xf6 | 0xfe => {
-                        vec![Cycle::INIT, Cycle::READ_MEM, Cycle::FETCH_LOW]
+                        vec![Cycle::Init, Cycle::ReadMem, Cycle::FetchLow]
                     }
                     // add hl, bc | add hl, de | add hl, hl | add hl, sp
                     0x09 | 0x19 | 0x29 | 0x39 => vec![
-                        Cycle::NOP,
-                        Cycle::NOP,
-                        Cycle::NOP,
-                        Cycle::NOP,
-                        Cycle::NOP,
-                        Cycle::NOP,
-                        Cycle::NOP,
+                        Cycle::Nop,
+                        Cycle::Nop,
+                        Cycle::Nop,
+                        Cycle::Nop,
+                        Cycle::Nop,
+                        Cycle::Nop,
+                        Cycle::Nop,
                     ],
                     // ld a, (bc)
-                    0x0a => vec![Cycle::ADDR_IS_BC, Cycle::READ_MEM, Cycle::PEEK_BYTE],
+                    0x0a => vec![Cycle::AddrIsBC, Cycle::ReadMem, Cycle::PeekByte],
                     // djnz d
-                    0x10 => vec![Cycle::NOP, Cycle::INIT, Cycle::READ_MEM, Cycle::JR_COND],
+                    0x10 => vec![Cycle::Nop, Cycle::Init, Cycle::ReadMem, Cycle::JrCond],
                     // ld (de), a
-                    0x12 => vec![Cycle::ADDR_IS_DE, Cycle::WRITE_A, Cycle::UNWRITE],
+                    0x12 => vec![Cycle::AddrIsDE, Cycle::WriteA, Cycle::Unwrite],
                     // jr d | jr nz, d | jr z, d | jr nc, d | jr c, d
                     0x18 | 0x20 | 0x28 | 0x30 | 0x38 => {
-                        vec![Cycle::INIT, Cycle::READ_MEM, Cycle::JR_COND]
+                        vec![Cycle::Init, Cycle::ReadMem, Cycle::JrCond]
                     }
                     // ld a, (de)
-                    0x1a => vec![Cycle::ADDR_IS_DE, Cycle::READ_MEM, Cycle::PEEK_BYTE],
+                    0x1a => vec![Cycle::AddrIsDE, Cycle::ReadMem, Cycle::PeekByte],
                     // ld (nn), hl
                     0x22 => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_HIGH,
-                        Cycle::SET_WORD_LOW,
-                        Cycle::WRITE_PREFIXED_L,
-                        Cycle::UNWRITE,
-                        Cycle::SET_WORD_HIGH,
-                        Cycle::WRITE_PREFIXED_H,
-                        Cycle::UNWRITE,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchHigh,
+                        Cycle::SetWordLow,
+                        Cycle::WritePrefixedL,
+                        Cycle::Unwrite,
+                        Cycle::SetWordHigh,
+                        Cycle::WritePrefixedH,
+                        Cycle::Unwrite,
                     ],
                     // ld hl, (nn)
                     0x2a => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_HIGH,
-                        Cycle::IND_INIT_LO,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_IND_LOW,
-                        Cycle::IND_INIT_HI,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_IND_HIGH,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchHigh,
+                        Cycle::IndInitLo,
+                        Cycle::ReadMem,
+                        Cycle::FetchIndLow,
+                        Cycle::IndInitHi,
+                        Cycle::ReadMem,
+                        Cycle::FetchIndHigh,
                     ],
                     // ld (nn), a
                     0x32 => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_HIGH,
-                        Cycle::SET_WORD_LOW,
-                        Cycle::WRITE_A,
-                        Cycle::UNWRITE,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchHigh,
+                        Cycle::SetWordLow,
+                        Cycle::WriteA,
+                        Cycle::Unwrite,
                     ],
                     // inc (hl)
                     0x34 => vec![
-                        Cycle::ADDR_IS_PREFIXED_HL,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_BYTE,
-                        Cycle::INC_LOW,
-                        Cycle::NOP,
-                        Cycle::WRITE_LOW,
-                        Cycle::UNWRITE,
+                        Cycle::AddrIsPrefixedHL,
+                        Cycle::ReadMem,
+                        Cycle::PeekByte,
+                        Cycle::IncLow,
+                        Cycle::Nop,
+                        Cycle::WriteLow,
+                        Cycle::Unwrite,
                     ],
                     // dec (hl)
                     0x35 => vec![
-                        Cycle::ADDR_IS_PREFIXED_HL,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_BYTE,
-                        Cycle::DEC_LOW,
-                        Cycle::NOP,
-                        Cycle::WRITE_LOW,
-                        Cycle::UNWRITE,
+                        Cycle::AddrIsPrefixedHL,
+                        Cycle::ReadMem,
+                        Cycle::PeekByte,
+                        Cycle::DecLow,
+                        Cycle::Nop,
+                        Cycle::WriteLow,
+                        Cycle::Unwrite,
                     ],
                     // ld (hl), n
                     0x36 => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_HIGH,
-                        Cycle::ADDR_IS_PREFIXED_HL,
-                        Cycle::WRITE_HIGH,
-                        Cycle::UNWRITE,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchHigh,
+                        Cycle::AddrIsPrefixedHL,
+                        Cycle::WriteHigh,
+                        Cycle::Unwrite,
                     ],
                     // ld a, (nn)
                     0x3a => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_HIGH,
-                        Cycle::SET_WORD_LOW,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_BYTE,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchHigh,
+                        Cycle::SetWordLow,
+                        Cycle::ReadMem,
+                        Cycle::PeekByte,
                     ],
                     // ld b, (hl) | ld c, (hl) | ld d, (hl) | ld e, (hl) | ld h, (hl) | ld l, (hl) | ld a, (hl) | add a, (hl) | adc a, (hl) | sub a, (hl) | sbc a, (hl) | and (hl) | xor (hl) | or (hl) | cp (hl)
                     0x46 | 0x4e | 0x56 | 0x5e | 0x66 | 0x6e | 0x7e | 0x86 | 0x8e | 0x96 | 0x9e
-                    | 0xa6 | 0xae | 0xb6 | 0xbe => vec![
-                        Cycle::ADDR_IS_PREFIXED_HL,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_BYTE,
-                    ],
+                    | 0xa6 | 0xae | 0xb6 | 0xbe => {
+                        vec![Cycle::AddrIsPrefixedHL, Cycle::ReadMem, Cycle::PeekByte]
+                    }
                     // ld (hl), b
-                    0x70 => vec![Cycle::ADDR_IS_PREFIXED_HL, Cycle::WRITE_B, Cycle::UNWRITE],
+                    0x70 => vec![Cycle::AddrIsPrefixedHL, Cycle::WriteB, Cycle::Unwrite],
                     // ld (hl), c
-                    0x71 => vec![Cycle::ADDR_IS_PREFIXED_HL, Cycle::WRITE_C, Cycle::UNWRITE],
+                    0x71 => vec![Cycle::AddrIsPrefixedHL, Cycle::WriteC, Cycle::Unwrite],
                     // ld (hl), d
-                    0x72 => vec![Cycle::ADDR_IS_PREFIXED_HL, Cycle::WRITE_D, Cycle::UNWRITE],
+                    0x72 => vec![Cycle::AddrIsPrefixedHL, Cycle::WriteD, Cycle::Unwrite],
                     // ld (hl), e
-                    0x73 => vec![Cycle::ADDR_IS_PREFIXED_HL, Cycle::WRITE_E, Cycle::UNWRITE],
+                    0x73 => vec![Cycle::AddrIsPrefixedHL, Cycle::WriteE, Cycle::Unwrite],
                     // ld (hl), h
-                    0x74 => vec![Cycle::ADDR_IS_PREFIXED_HL, Cycle::WRITE_H, Cycle::UNWRITE],
+                    0x74 => vec![Cycle::AddrIsPrefixedHL, Cycle::WriteH, Cycle::Unwrite],
                     // ld (hl), l
-                    0x75 => vec![Cycle::ADDR_IS_PREFIXED_HL, Cycle::WRITE_L, Cycle::UNWRITE],
+                    0x75 => vec![Cycle::AddrIsPrefixedHL, Cycle::WriteL, Cycle::Unwrite],
                     // ld (hl), a
-                    0x77 => vec![Cycle::ADDR_IS_PREFIXED_HL, Cycle::WRITE_A, Cycle::UNWRITE],
+                    0x77 => vec![Cycle::AddrIsPrefixedHL, Cycle::WriteA, Cycle::Unwrite],
                     // ret nz | ret z | ret nc | ret c | ret po | ret pe | ret p | ret m
-                    0xc0 | 0xc8 | 0xd0 | 0xd8 | 0xe0 | 0xe8 | 0xf0 | 0xf8 => vec![Cycle::CHECK_RET],
+                    0xc0 | 0xc8 | 0xd0 | 0xd8 | 0xe0 | 0xe8 | 0xf0 | 0xf8 => vec![Cycle::CheckRet],
                     // pop bc | ret  | pop de | pop hl | pop af
                     0xc1 | 0xc9 | 0xd1 | 0xe1 | 0xf1 => vec![
-                        Cycle::POP_STACK_LOW,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_LOW,
-                        Cycle::POP_STACK_HIGH,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_HIGH,
+                        Cycle::PopStackLow,
+                        Cycle::ReadMem,
+                        Cycle::PeekLow,
+                        Cycle::PopStackHigh,
+                        Cycle::ReadMem,
+                        Cycle::PeekHigh,
                     ],
                     // call nz, nn | call z, nn | call nc, nn | call c, nn | call pe, nn | call po, nn | call p, nn | call m, nn
                     0xc4 | 0xcc | 0xd4 | 0xdc | 0xe4 | 0xec | 0xf4 | 0xfc => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::CALL_COND,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::CallCond,
                     ],
                     // push bc
                     0xc5 => vec![
-                        Cycle::NOP,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_B,
-                        Cycle::UNWRITE,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_C,
-                        Cycle::UNWRITE,
+                        Cycle::Nop,
+                        Cycle::PushStack,
+                        Cycle::WriteB,
+                        Cycle::Unwrite,
+                        Cycle::PushStack,
+                        Cycle::WriteC,
+                        Cycle::Unwrite,
                     ],
                     // rst $00 | rst $08 | rst $10 | rst $18 | rst $20 | rst $28 | rst $30 | rst $38
                     0xc7 | 0xcf | 0xd7 | 0xdf | 0xe7 | 0xef | 0xf7 | 0xff => vec![
-                        Cycle::NOP,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_PC_HIGH,
-                        Cycle::UNWRITE,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_PC_LOW,
-                        Cycle::UNWRITE,
+                        Cycle::Nop,
+                        Cycle::PushStack,
+                        Cycle::WritePCHigh,
+                        Cycle::Unwrite,
+                        Cycle::PushStack,
+                        Cycle::WritePCLow,
+                        Cycle::Unwrite,
                     ],
                     // call nn
                     0xcd => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_HIGH,
-                        Cycle::NOP,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_PC_HIGH,
-                        Cycle::UNWRITE,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_PC_LOW,
-                        Cycle::UNWRITE,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchHigh,
+                        Cycle::Nop,
+                        Cycle::PushStack,
+                        Cycle::WritePCHigh,
+                        Cycle::Unwrite,
+                        Cycle::PushStack,
+                        Cycle::WritePCLow,
+                        Cycle::Unwrite,
                     ],
                     // out (n), a
                     0xd3 => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::ADDR_IS_A_LOW,
-                        Cycle::NOP,
-                        Cycle::WRITE_IO_U8(self.a),
-                        Cycle::UNWRITE,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::AddrIsALow,
+                        Cycle::Nop,
+                        Cycle::WriteIOU8(self.a),
+                        Cycle::Unwrite,
                     ],
                     // push de
                     0xd5 => vec![
-                        Cycle::NOP,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_D,
-                        Cycle::UNWRITE,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_E,
-                        Cycle::UNWRITE,
+                        Cycle::Nop,
+                        Cycle::PushStack,
+                        Cycle::WriteD,
+                        Cycle::Unwrite,
+                        Cycle::PushStack,
+                        Cycle::WriteE,
+                        Cycle::Unwrite,
                     ],
                     // in a, (n)
                     0xdb => vec![
-                        Cycle::INIT,
-                        Cycle::READ_MEM,
-                        Cycle::FETCH_LOW,
-                        Cycle::ADDR_IS_A_LOW,
-                        Cycle::NOP,
-                        Cycle::READ_IO,
-                        Cycle::PEEK_BYTE,
+                        Cycle::Init,
+                        Cycle::ReadMem,
+                        Cycle::FetchLow,
+                        Cycle::AddrIsALow,
+                        Cycle::Nop,
+                        Cycle::ReadIO,
+                        Cycle::PeekByte,
                     ],
                     // prefix
-                    0xdd | 0xfd => vec![Cycle::INIT, Cycle::READ_MEM],
+                    0xdd | 0xfd => vec![Cycle::Init, Cycle::ReadMem],
                     // ex (sp), hl
                     0xe3 => vec![
-                        Cycle::ADDR_IS_SP0,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_LOW,
-                        Cycle::ADDR_IS_SP1,
-                        Cycle::READ_MEM,
-                        Cycle::PEEK_HIGH,
-                        Cycle::NOP,
-                        Cycle::ADDR_IS_SP0,
-                        Cycle::WRITE_PREFIXED_L,
-                        Cycle::UNWRITE,
-                        Cycle::ADDR_IS_SP1,
-                        Cycle::WRITE_PREFIXED_H,
-                        Cycle::UNWRITE,
-                        Cycle::NOP,
-                        Cycle::NOP,
+                        Cycle::AddrIsSP0,
+                        Cycle::ReadMem,
+                        Cycle::PeekLow,
+                        Cycle::AddrIsSP1,
+                        Cycle::ReadMem,
+                        Cycle::PeekHigh,
+                        Cycle::Nop,
+                        Cycle::AddrIsSP0,
+                        Cycle::WritePrefixedL,
+                        Cycle::Unwrite,
+                        Cycle::AddrIsSP1,
+                        Cycle::WritePrefixedH,
+                        Cycle::Unwrite,
+                        Cycle::Nop,
+                        Cycle::Nop,
                     ],
                     // push hl
                     0xe5 => vec![
-                        Cycle::NOP,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_PREFIXED_H,
-                        Cycle::UNWRITE,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_PREFIXED_L,
-                        Cycle::UNWRITE,
+                        Cycle::Nop,
+                        Cycle::PushStack,
+                        Cycle::WritePrefixedH,
+                        Cycle::Unwrite,
+                        Cycle::PushStack,
+                        Cycle::WritePrefixedL,
+                        Cycle::Unwrite,
                     ],
                     // push af
                     0xf5 => vec![
-                        Cycle::NOP,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_A,
-                        Cycle::UNWRITE,
-                        Cycle::PUSH_STACK,
-                        Cycle::WRITE_F,
-                        Cycle::UNWRITE,
+                        Cycle::Nop,
+                        Cycle::PushStack,
+                        Cycle::WriteA,
+                        Cycle::Unwrite,
+                        Cycle::PushStack,
+                        Cycle::WriteF,
+                        Cycle::Unwrite,
                     ],
                     _ => vec![],
                 };
-                self.microcodes.insert(0, Cycle::NOP);
+                self.microcodes.insert(0, Cycle::Nop);
                 if self.prefix != Prefix::NONE {
                     match op {
                         0x34
@@ -2230,26 +2270,26 @@ impl<T: Z80_IO> Z80<T> {
                         | 0xae
                         | 0xb6
                         | 0xbe => {
-                            self.microcodes.insert(1, Cycle::INIT);
-                            self.microcodes.insert(2, Cycle::READ_MEM);
-                            self.microcodes.insert(3, Cycle::FETCH_LOW);
-                            self.microcodes.insert(4, Cycle::NOP);
-                            self.microcodes.insert(5, Cycle::NOP);
-                            self.microcodes.insert(6, Cycle::NOP);
-                            self.microcodes.insert(7, Cycle::NOP);
-                            self.microcodes.insert(8, Cycle::NOP);
+                            self.microcodes.insert(1, Cycle::Init);
+                            self.microcodes.insert(2, Cycle::ReadMem);
+                            self.microcodes.insert(3, Cycle::FetchLow);
+                            self.microcodes.insert(4, Cycle::Nop);
+                            self.microcodes.insert(5, Cycle::Nop);
+                            self.microcodes.insert(6, Cycle::Nop);
+                            self.microcodes.insert(7, Cycle::Nop);
+                            self.microcodes.insert(8, Cycle::Nop);
                         }
                         0x36 => {
-                            self.microcodes.insert(1, Cycle::INIT);
-                            self.microcodes.insert(2, Cycle::READ_MEM);
-                            self.microcodes.insert(3, Cycle::FETCH_LOW);
-                            self.microcodes.insert(4, Cycle::NOP);
-                            self.microcodes.insert(5, Cycle::NOP);
+                            self.microcodes.insert(1, Cycle::Init);
+                            self.microcodes.insert(2, Cycle::ReadMem);
+                            self.microcodes.insert(3, Cycle::FetchLow);
+                            self.microcodes.insert(4, Cycle::Nop);
+                            self.microcodes.insert(5, Cycle::Nop);
                         }
                         0xcb => {
-                            self.microcodes.push(Cycle::INIT);
-                            self.microcodes.push(Cycle::READ_MEM);
-                            self.microcodes.push(Cycle::FETCH_HIGH);
+                            self.microcodes.push(Cycle::Init);
+                            self.microcodes.push(Cycle::ReadMem);
+                            self.microcodes.push(Cycle::FetchHigh);
                             // undo $cb incrementing r
                             self.r = self.r.wrapping_sub(1);
                             if self.r == 0xff {
@@ -2367,7 +2407,9 @@ impl<T: Z80_IO> Z80<T> {
                     0xa0..=0xa7 => Some(|cpu| cpu.and_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
                     0xa8..=0xaf => Some(|cpu| cpu.xor_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
                     0xb0..=0xb7 => Some(|cpu| cpu.or_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0xb8..=0xbf => Some(|cpu| {cpu.cp_a_r(cpu.prefixed_group_reg_r(cpu.group_1));}),
+                    0xb8..=0xbf => Some(|cpu| {
+                        cpu.cp_a_r(cpu.prefixed_group_reg_r(cpu.group_1));
+                    }),
                     0xc2 | 0xca | 0xd2 | 0xda | 0xe2 | 0xea | 0xf2 | 0xfa => Some(jp_cond),
                     0xc3 | 0xc9 | 0xcd => Some(|cpu| {
                         cpu.pc = word(cpu.high_byte, cpu.low_byte);
@@ -2385,7 +2427,7 @@ impl<T: Z80_IO> Z80<T> {
                         cpu.a = cpu.data_bus.unwrap()
                     }),
                     0xdd => Some(|cpu| {
-                        cpu.phase = FDEPhase::FETCH;
+                        cpu.phase = FDEPhase::Fetch;
                         cpu.prefix = Prefix::DD;
                     }),
                     0xde => Some(|cpu| cpu.sbc_a_r(cpu.low_byte)),
@@ -2401,10 +2443,12 @@ impl<T: Z80_IO> Z80<T> {
                     0xf9 => Some(|cpu| cpu.sp = cpu.prefixed_hl()),
                     0xfb => Some(ei),
                     0xfd => Some(|cpu| {
-                        cpu.phase = FDEPhase::FETCH;
+                        cpu.phase = FDEPhase::Fetch;
                         cpu.prefix = Prefix::FD;
                     }),
-                    0xfe => Some(|cpu| {cpu.cp_a_r(cpu.low_byte);}),
+                    0xfe => Some(|cpu| {
+                        cpu.cp_a_r(cpu.low_byte);
+                    }),
                     _ => None,
                 };
                 self.set_q = match op {
@@ -2451,36 +2495,36 @@ impl<T: Z80_IO> Z80<T> {
                 self.read_pin = false;
                 self.memory_pin = false;
             }
-            FDEPhase::EXECUTE => {
+            FDEPhase::Execute => {
                 let microcode = self.microcodes.remove(0);
                 match microcode {
-                    Cycle::ADDR_IS_A_LOW => {
+                    Cycle::AddrIsALow => {
                         self.addr_bus = Some(word(self.a, self.low_byte));
                         self.data_bus = None;
                     }
-                    Cycle::ADDR_IS_BC => {
+                    Cycle::AddrIsBC => {
                         self.addr_bus = Some(self.bc());
                         self.data_bus = None;
-                    },
-                    Cycle::ADDR_IS_DE => {
+                    }
+                    Cycle::AddrIsDE => {
                         self.addr_bus = Some(self.de());
                         self.data_bus = None;
-                    },
-                    Cycle::ADDR_IS_DEC_B_C => {
+                    }
+                    Cycle::AddrIsDecBC => {
                         self.b = self.b.wrapping_sub(1);
                         self.addr_bus = Some(self.bc());
                         self.data_bus = None;
-                    },
-                    Cycle::ADDR_IS_IM2_HIGH => {
+                    }
+                    Cycle::AddrIsIM2High => {
                         self.addr_bus = Some(self.addr_bus.unwrap().wrapping_add(1));
                         self.data_bus = None;
                     }
-                    Cycle::ADDR_IS_IM2_LOW => {
+                    Cycle::AddrIsIM2Low => {
                         let addr = word(self.i, self.curr_irq_data);
                         self.addr_bus = Some(addr);
                         self.data_bus = None;
                     }
-                    Cycle::ADDR_IS_PREFIXED_HL => {
+                    Cycle::AddrIsPrefixedHL => {
                         self.addr_bus = match self.prefix {
                             Prefix::DD => {
                                 self.wz = if self.low_byte >= 0x80 {
@@ -2502,15 +2546,15 @@ impl<T: Z80_IO> Z80<T> {
                         };
                         self.data_bus = None;
                     }
-                    Cycle::ADDR_IS_SP0 => {
+                    Cycle::AddrIsSP0 => {
                         self.addr_bus = Some(self.sp);
                         self.data_bus = None;
                     }
-                    Cycle::ADDR_IS_SP1 => {
+                    Cycle::AddrIsSP1 => {
                         self.addr_bus = Some(self.sp.wrapping_add(1));
                         self.data_bus = None;
                     }
-                    Cycle::CALL_COND => {
+                    Cycle::CallCond => {
                         self.fetch_high();
                         self.wz = word(self.high_byte, self.low_byte);
                         if match self.group_8 {
@@ -2522,36 +2566,36 @@ impl<T: Z80_IO> Z80<T> {
                             5 => self.flag(FLAG_PV),
                             6 => !self.flag(FLAG_S),
                             7 => self.flag(FLAG_S),
-                            _ => panic!("Invalid CHECK_RET"),
+                            _ => panic!("Invalid CheckRet"),
                         } {
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::PUSH_STACK);
-                            self.microcodes.push(Cycle::WRITE_PC_HIGH);
-                            self.microcodes.push(Cycle::UNWRITE);
-                            self.microcodes.push(Cycle::PUSH_STACK);
-                            self.microcodes.push(Cycle::WRITE_PC_LOW);
-                            self.microcodes.push(Cycle::UNWRITE);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::PushStack);
+                            self.microcodes.push(Cycle::WritePCHigh);
+                            self.microcodes.push(Cycle::Unwrite);
+                            self.microcodes.push(Cycle::PushStack);
+                            self.microcodes.push(Cycle::WritePCLow);
+                            self.microcodes.push(Cycle::Unwrite);
                             self.side_effect = Some(|cpu| cpu.pc = cpu.wz);
                         }
                     }
-                    Cycle::CHECK_IRQ_DATA => self.data_bus = Some(self.curr_irq_data),
-                    Cycle::CHECK_REP => {
+                    Cycle::CheckIrqData => self.data_bus = Some(self.curr_irq_data),
+                    Cycle::CheckRep => {
                         self.unwrite();
                         if match self.group_1 {
                             0 => self.bc() != 1,
                             1 => self.bc() != 1 && self.a != self.low_byte,
                             2 => self.b != 1,
                             3 => self.b != 0,
-                            _ => panic!("Invalid CHECK_REP"),
+                            _ => panic!("Invalid CheckRep"),
                         } {
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
                         }
                     }
-                    Cycle::CHECK_RET => {
+                    Cycle::CheckRet => {
                         if match self.group_8 {
                             0 => !self.flag(FLAG_Z),
                             1 => self.flag(FLAG_Z),
@@ -2561,58 +2605,58 @@ impl<T: Z80_IO> Z80<T> {
                             5 => self.flag(FLAG_PV),
                             6 => !self.flag(FLAG_S),
                             7 => self.flag(FLAG_S),
-                            _ => panic!("Invalid CHECK_RET"),
+                            _ => panic!("Invalid CheckRet"),
                         } {
-                            self.microcodes.push(Cycle::POP_STACK_LOW);
-                            self.microcodes.push(Cycle::READ_MEM);
-                            self.microcodes.push(Cycle::PEEK_LOW);
-                            self.microcodes.push(Cycle::POP_STACK_HIGH);
-                            self.microcodes.push(Cycle::READ_MEM);
-                            self.microcodes.push(Cycle::PEEK_HIGH);
+                            self.microcodes.push(Cycle::PopStackLow);
+                            self.microcodes.push(Cycle::ReadMem);
+                            self.microcodes.push(Cycle::PeekLow);
+                            self.microcodes.push(Cycle::PopStackHigh);
+                            self.microcodes.push(Cycle::ReadMem);
+                            self.microcodes.push(Cycle::PeekHigh);
                             self.side_effect = Some(|cpu| {
                                 cpu.pc = word(cpu.high_byte, cpu.low_byte);
                                 cpu.wz = cpu.pc;
                             });
                         }
                     }
-                    Cycle::DEC_LOW => {
+                    Cycle::DecLow => {
                         self.low_byte = self.dec_reg(self.prefixed_group_reg_r(self.group_8));
                         self.data_bus = None;
                     }
-                    Cycle::FETCH_HIGH => self.fetch_high(),
-                    Cycle::FETCH_IND_HIGH => {
+                    Cycle::FetchHigh => self.fetch_high(),
+                    Cycle::FetchIndHigh => {
                         self.wz = self.addr_bus.unwrap();
                         self.data_bus = Some(self.io.peek_byte(self.wz));
                         self.read_pin = false;
                         self.memory_pin = false;
                         self.high_byte = self.data_bus.unwrap();
                     }
-                    Cycle::FETCH_IND_LOW => {
+                    Cycle::FetchIndLow => {
                         self.data_bus = Some(self.io.peek_byte(self.addr_bus.unwrap()));
                         self.read_pin = false;
                         self.memory_pin = false;
                         self.low_byte = self.data_bus.unwrap();
                     }
-                    Cycle::FETCH_LOW => self.fetch_low(),
-                    Cycle::INC_LOW => {
+                    Cycle::FetchLow => self.fetch_low(),
+                    Cycle::IncLow => {
                         self.low_byte = self.inc_reg(self.prefixed_group_reg_r(self.group_8));
                         self.data_bus = None;
                     }
-                    Cycle::IND_INIT_LO => {
+                    Cycle::IndInitLo => {
                         self.ind_addr = word(self.high_byte, self.low_byte);
                         self.addr_bus = Some(self.ind_addr);
                         self.data_bus = None;
                     }
-                    Cycle::IND_INIT_HI => {
+                    Cycle::IndInitHi => {
                         self.ind_addr = self.ind_addr.wrapping_add(1);
                         self.addr_bus = Some(self.ind_addr);
                         self.data_bus = None;
                     }
-                    Cycle::INIT => {
+                    Cycle::Init => {
                         self.addr_bus = Some(self.pc);
                         self.data_bus = None;
                     }
-                    Cycle::JR_COND => {
+                    Cycle::JrCond => {
                         self.fetch_low();
                         let jump = match self.group_8 {
                             2 => {
@@ -2624,14 +2668,14 @@ impl<T: Z80_IO> Z80<T> {
                             5 => self.flag(FLAG_Z),
                             6 => !self.flag(FLAG_C),
                             7 => self.flag(FLAG_C),
-                            _ => panic!("Invalid JR_COND"),
+                            _ => panic!("Invalid JrCond"),
                         };
                         if jump {
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
-                            self.microcodes.push(Cycle::NOP);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
+                            self.microcodes.push(Cycle::Nop);
                             self.pc = if self.low_byte >= 0x80 {
                                 self.pc.wrapping_sub(0x100 - self.low_byte as u16)
                             } else {
@@ -2640,8 +2684,8 @@ impl<T: Z80_IO> Z80<T> {
                             self.wz = self.pc;
                         }
                     }
-                    Cycle::NOP => self.data_bus = None,
-                    Cycle::PEEK_BYTE => {
+                    Cycle::Nop => self.data_bus = None,
+                    Cycle::PeekByte => {
                         if self.memory_pin {
                             self.data_bus = Some(self.io.peek_byte(self.addr_bus.unwrap()));
                             self.memory_pin = false;
@@ -2652,13 +2696,13 @@ impl<T: Z80_IO> Z80<T> {
                         }
                         self.read_pin = false;
                     }
-                    Cycle::PEEK_HIGH => {
+                    Cycle::PeekHigh => {
                         self.high_byte = self.io.peek_byte(self.addr_bus.unwrap());
                         self.data_bus = Some(self.high_byte);
                         self.read_pin = false;
                         self.memory_pin = false;
                     }
-                    Cycle::PEEK_LOW => {
+                    Cycle::PeekLow => {
                         if self.memory_pin {
                             self.low_byte = self.io.peek_byte(self.addr_bus.unwrap());
                             self.memory_pin = false;
@@ -2670,47 +2714,47 @@ impl<T: Z80_IO> Z80<T> {
                         self.data_bus = Some(self.low_byte);
                         self.read_pin = false;
                     }
-                    Cycle::POP_STACK_HIGH => {
+                    Cycle::PopStackHigh => {
                         self.addr_bus = Some(self.sp);
                         self.sp = self.sp.wrapping_add(1);
                         self.data_bus = None;
                     }
-                    Cycle::POP_STACK_LOW => {
+                    Cycle::PopStackLow => {
                         self.addr_bus = Some(self.sp);
                         self.sp = self.sp.wrapping_add(1);
                     }
-                    Cycle::PUSH_STACK => {
+                    Cycle::PushStack => {
                         self.sp = self.sp.wrapping_sub(1);
                         self.addr_bus = Some(self.sp);
                         self.data_bus = None;
                     }
-                    Cycle::READ_IO => {
+                    Cycle::ReadIO => {
                         self.read_pin = true;
                         self.io_pin = true;
                     }
-                    Cycle::READ_MEM => {
+                    Cycle::ReadMem => {
                         self.read_pin = true;
                         self.memory_pin = true;
                     }
-                    Cycle::RES_EXT => {
+                    Cycle::ResExt => {
                         self.low_byte = self.data_bus.unwrap() & mask(self.group_8);
                         self.data_bus = None;
                     }
-                    Cycle::RL_DATA => {
+                    Cycle::RLData => {
                         self.low_byte = self.rl(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::RLC_DATA => {
+                    Cycle::RLCData => {
                         self.low_byte = self.rlc(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::RLD_DATA => {
+                    Cycle::RLDData => {
                         let low_a = self.a & 0x0f;
                         let val = self.data_bus.unwrap();
                         self.a = (self.a & 0xf0) | ((val & 0xf0) >> 4);
                         self.low_byte = low_a | ((val & 0x0f) << 4);
                         self.data_bus = None;
-                        self.f &= 0xff - (FLAG_N|FLAG_H|0x28|FLAG_Z|FLAG_S);
+                        self.f &= 0xff - (FLAG_N | FLAG_H | 0x28 | FLAG_Z | FLAG_S);
                         self.set_parity_a();
                         self.f |= self.a & 0x28;
                         if self.a == 0x00 {
@@ -2721,21 +2765,21 @@ impl<T: Z80_IO> Z80<T> {
                         }
                         self.wz = self.hl().wrapping_add(1);
                     }
-                    Cycle::RR_DATA => {
+                    Cycle::RRData => {
                         self.low_byte = self.rr(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::RRC_DATA => {
+                    Cycle::RRCData => {
                         self.low_byte = self.rrc(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::RRD_DATA => {
+                    Cycle::RRDData => {
                         let low_a = self.a & 0x0f;
                         let val = self.data_bus.unwrap();
                         self.a = (self.a & 0xf0) | (val & 0x0f);
                         self.low_byte = (low_a << 4) | ((val & 0xf0) >> 4);
                         self.data_bus = None;
-                        self.f &= 0xff - (FLAG_N|FLAG_H|0x28|FLAG_Z|FLAG_S);
+                        self.f &= 0xff - (FLAG_N | FLAG_H | 0x28 | FLAG_Z | FLAG_S);
                         self.set_parity_a();
                         self.f |= self.a & 0x28;
                         if self.a == 0x00 {
@@ -2746,67 +2790,67 @@ impl<T: Z80_IO> Z80<T> {
                         }
                         self.wz = self.hl().wrapping_add(1);
                     }
-                    Cycle::SET_EXT => {
+                    Cycle::SetExt => {
                         self.low_byte = self.data_bus.unwrap() | flag(self.group_8);
                         self.data_bus = None;
                     }
-                    Cycle::SET_WORD_HIGH => {
+                    Cycle::SetWordHigh => {
                         self.data_bus = None;
                         self.addr_bus = Some(self.addr_bus.unwrap().wrapping_add(1));
                     }
-                    Cycle::SET_WORD_LOW => {
+                    Cycle::SetWordLow => {
                         self.data_bus = None;
                         self.addr_bus = Some(word(self.high_byte, self.low_byte));
                     }
-                    Cycle::SLA_DATA => {
+                    Cycle::SLAData => {
                         self.low_byte = self.sla(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::SLL_DATA => {
+                    Cycle::SLLData => {
                         self.low_byte = self.sll(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::SRA_DATA => {
+                    Cycle::SRAData => {
                         self.low_byte = self.sra(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::SRL_DATA => {
+                    Cycle::SRLData => {
                         self.low_byte = self.srl(self.data_bus.unwrap());
                         self.data_bus = None;
                     }
-                    Cycle::UNWRITE => self.unwrite(),
-                    Cycle::WRITE_A => self.cycle_write_u8(self.a),
-                    Cycle::WRITE_B => self.cycle_write_u8(self.b),
-                    Cycle::WRITE_C => self.cycle_write_u8(self.c),
-                    Cycle::WRITE_D => self.cycle_write_u8(self.d),
-                    Cycle::WRITE_E => self.cycle_write_u8(self.e),
-                    Cycle::WRITE_F => self.cycle_write_u8(self.f),
-                    Cycle::WRITE_H => self.cycle_write_u8(self.h),
-                    Cycle::WRITE_HIGH => self.cycle_write_u8(self.high_byte),
-                    Cycle::WRITE_IO_LOW => {
+                    Cycle::Unwrite => self.unwrite(),
+                    Cycle::WriteA => self.cycle_write_u8(self.a),
+                    Cycle::WriteB => self.cycle_write_u8(self.b),
+                    Cycle::WriteC => self.cycle_write_u8(self.c),
+                    Cycle::WriteD => self.cycle_write_u8(self.d),
+                    Cycle::WriteE => self.cycle_write_u8(self.e),
+                    Cycle::WriteF => self.cycle_write_u8(self.f),
+                    Cycle::WriteH => self.cycle_write_u8(self.h),
+                    Cycle::WriteHigh => self.cycle_write_u8(self.high_byte),
+                    Cycle::WriteIOLow => {
                         self.data_bus = Some(self.low_byte);
                         self.write_pin = true;
                         self.io_pin = true;
                     }
-                    Cycle::WRITE_IO_U8(val) => {
+                    Cycle::WriteIOU8(val) => {
                         self.data_bus = Some(val);
                         self.write_pin = true;
                         self.io_pin = true;
                     }
-                    Cycle::WRITE_L => self.cycle_write_u8(self.l),
-                    Cycle::WRITE_LOW => self.cycle_write_u8(self.low_byte),
-                    Cycle::WRITE_PC_HIGH => self.cycle_write_u8((self.pc >> 8) as u8),
-                    Cycle::WRITE_PC_LOW => self.cycle_write_u8(self.pc as u8),
-                    Cycle::WRITE_PREFIXED_H => {
+                    Cycle::WriteL => self.cycle_write_u8(self.l),
+                    Cycle::WriteLow => self.cycle_write_u8(self.low_byte),
+                    Cycle::WritePCHigh => self.cycle_write_u8((self.pc >> 8) as u8),
+                    Cycle::WritePCLow => self.cycle_write_u8(self.pc as u8),
+                    Cycle::WritePrefixedH => {
                         let val = self.get_prefixed_h();
                         self.cycle_write_u8(val);
                     }
-                    Cycle::WRITE_PREFIXED_L => {
+                    Cycle::WritePrefixedL => {
                         let val = self.get_prefixed_l();
                         self.cycle_write_u8(val);
                     }
-                    Cycle::WRITE_SP_HIGH => self.cycle_write_u8((self.sp >> 8) as u8),
-                    Cycle::WRITE_SP_LOW => self.cycle_write_u8(self.sp as u8),
+                    Cycle::WriteSPHigh => self.cycle_write_u8((self.sp >> 8) as u8),
+                    Cycle::WriteSPLow => self.cycle_write_u8(self.sp as u8),
                 }
 
                 if self.write_pin {
@@ -2816,7 +2860,7 @@ impl<T: Z80_IO> Z80<T> {
                 if self.microcodes.len() == 0 {
                     self.r = self.r.wrapping_add(1) & 0x7f;
                     self.ei = 0;
-                    self.phase = FDEPhase::INIT;
+                    self.phase = FDEPhase::Init;
                     let prev_prefix = self.prefix;
                     match self.side_effect {
                         None => {}
@@ -2840,35 +2884,36 @@ impl<T: Z80_IO> Z80<T> {
                                 self.iff1 = 0;
                                 self.iff2 = 0;
                                 self.halt = false;
-                                self.phase = FDEPhase::EXECUTE;
+                                self.phase = FDEPhase::Execute;
                                 self.is_ext = false;
                                 self.microcodes = match self.im {
                                     0 => panic!("Implement im 0"),
                                     1 => panic!("Implement im 1"),
                                     2 => vec![
-                                        Cycle::NOP,
-                                        Cycle::NOP,
-                                        Cycle::NOP,
-                                        Cycle::CHECK_IRQ_DATA,
-                                        Cycle::NOP,
-                                        Cycle::NOP,
-                                        Cycle::NOP,
-                                        Cycle::PUSH_STACK,
-                                        Cycle::WRITE_PC_HIGH,
-                                        Cycle::UNWRITE,
-                                        Cycle::PUSH_STACK,
-                                        Cycle::WRITE_PC_LOW,
-                                        Cycle::UNWRITE,
-                                        Cycle::ADDR_IS_IM2_LOW,
-                                        Cycle::READ_MEM,
-                                        Cycle::PEEK_LOW,
-                                        Cycle::ADDR_IS_IM2_HIGH,
-                                        Cycle::READ_MEM,
-                                        Cycle::PEEK_HIGH,
+                                        Cycle::Nop,
+                                        Cycle::Nop,
+                                        Cycle::Nop,
+                                        Cycle::CheckIrqData,
+                                        Cycle::Nop,
+                                        Cycle::Nop,
+                                        Cycle::Nop,
+                                        Cycle::PushStack,
+                                        Cycle::WritePCHigh,
+                                        Cycle::Unwrite,
+                                        Cycle::PushStack,
+                                        Cycle::WritePCLow,
+                                        Cycle::Unwrite,
+                                        Cycle::AddrIsIM2Low,
+                                        Cycle::ReadMem,
+                                        Cycle::PeekLow,
+                                        Cycle::AddrIsIM2High,
+                                        Cycle::ReadMem,
+                                        Cycle::PeekHigh,
                                     ],
                                     _ => panic!("Invalid im for irq"),
                                 };
-                                self.side_effect = Some(|cpu| cpu.pc = word(cpu.high_byte, cpu.low_byte));
+                                self.side_effect =
+                                    Some(|cpu| cpu.pc = word(cpu.high_byte, cpu.low_byte));
                             }
                         }
                     }
