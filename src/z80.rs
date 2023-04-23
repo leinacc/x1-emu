@@ -25,10 +25,13 @@ enum Cycle {
     ADDR_IS_BC,
     ADDR_IS_DE,
     ADDR_IS_DEC_B_C,
+    ADDR_IS_IM2_HIGH,
+    ADDR_IS_IM2_LOW,
     ADDR_IS_PREFIXED_HL,
     ADDR_IS_SP0,
     ADDR_IS_SP1,
     CALL_COND,
+    CHECK_IRQ_DATA,
     CHECK_REP,
     CHECK_RET,
     DEC_LOW,
@@ -139,7 +142,10 @@ pub struct Z80<T: Z80_IO> {
     group_1: u8,
     prefix: Prefix,
 
-    irq_req: bool,
+    pub irq_req: bool,
+    curr_irq_data: u8,
+    init_pc: u16,
+    is_ext: bool,
 }
 
 fn bit_set(val: u8, bit: u8) -> bool {
@@ -287,13 +293,13 @@ fn di<T: Z80_IO>(cpu: &mut Z80<T>) {
 }
 
 fn ei<T: Z80_IO>(cpu: &mut Z80<T>) {
-    cpu.ei = 1;
+    cpu.ei = 2;
     cpu.iff1 = 1;
     cpu.iff2 = 1;
 }
 
 fn ex_af_af_<T: Z80_IO>(cpu: &mut Z80<T>) {
-    let new_shadow = cpu.af();
+    let new_shadow = word(cpu.a, cpu.f);
     cpu.a = (cpu.af_ >> 8) as u8;
     cpu.f = cpu.af_ as u8;
     cpu.af_ = new_shadow;
@@ -569,6 +575,7 @@ fn get_cb_op<T: Z80_IO>(cpu: &mut Z80<T>) {
         _ => None,
     };
     cpu.set_q = true;
+    cpu.is_ext = true;
 }
 
 fn get_ed_op<T: Z80_IO>(cpu: &mut Z80<T>) {
@@ -788,7 +795,7 @@ fn get_ed_op<T: Z80_IO>(cpu: &mut Z80<T>) {
             cpu.a = 0;
             cpu.sub_a_r(val);
         }),
-        0x45 | 0x4d | 0x55 | 0x5d | 0x65 | 0x6d | 0x75 | 0x7d => Some(|cpu| {
+        0x45 | 0x55 | 0x5d | 0x65 | 0x6d | 0x75 | 0x7d => Some(|cpu| {
             cpu.pc = word(cpu.high_byte, cpu.low_byte);
             cpu.wz = cpu.pc;
             cpu.iff1 = cpu.iff2;
@@ -797,6 +804,12 @@ fn get_ed_op<T: Z80_IO>(cpu: &mut Z80<T>) {
         0x47 => Some(|cpu| cpu.i = cpu.a),
         0x4a | 0x5a | 0x6a | 0x7a => Some(adc_hl_rp),
         0x4b => Some(set_bc),
+        0x4d => Some(|cpu| {
+            cpu.pc = word(cpu.high_byte, cpu.low_byte);
+            cpu.wz = cpu.pc;
+            cpu.iff1 = cpu.iff2;
+            cpu.irq_req = false;
+        }),
         0x4f => Some(|cpu| cpu.r = cpu.a),
         0x56 | 0x76 => Some(|cpu| cpu.im = 1),
         0x57 => Some(|cpu| cpu.ld_a_ir(cpu.i)),
@@ -831,7 +844,8 @@ fn get_ed_op<T: Z80_IO>(cpu: &mut Z80<T>) {
         | 0x62 | 0x6a | 0x72 | 0x7a | 0x44 | 0x4c | 0x54 | 0x5c | 0x64 | 0x6c | 0x74 | 0x7c
         | 0x57 | 0x5f | 0x67 | 0x6f | 0xa0..=0xa3 | 0xa8..=0xab | 0xb0..=0xb3 | 0xb8..=0xbb => true,
         _ => false,
-    }
+    };
+    cpu.is_ext = true;
 }
 
 fn prefixed_hl_is_word<T: Z80_IO>(cpu: &mut Z80<T>) {
@@ -1116,6 +1130,9 @@ impl<T: Z80_IO> Z80<T> {
             prefix: Prefix::NONE,
 
             irq_req: false,
+            curr_irq_data: 0,
+            init_pc: 0,
+            is_ext: false,
         }
     }
 
@@ -1343,22 +1360,6 @@ impl<T: Z80_IO> Z80<T> {
         if self.io_pin {
             self.io.write_io(addr, val);
         }
-    }
-
-    fn af(&self) -> u16 {
-        word(self.a, self.f)
-    }
-
-    pub fn bc(&self) -> u16 {
-        word(self.b, self.c)
-    }
-
-    pub fn de(&self) -> u16 {
-        word(self.d, self.e)
-    }
-
-    pub fn hl(&self) -> u16 {
-        word(self.h, self.l)
     }
 
     fn prefixed_hl(&self) -> u16 {
@@ -1856,13 +1857,21 @@ impl<T: Z80_IO> Z80<T> {
     }
 
     // APIs
+    pub fn bc(&self) -> u16 {
+        word(self.b, self.c)
+    }
+
+    pub fn de(&self) -> u16 {
+        word(self.d, self.e)
+    }
+
+    pub fn hl(&self) -> u16 {
+        word(self.h, self.l)
+    }
 
     pub fn assert_irq(&mut self, val: u8) {
         self.irq_req = true;
-    }
-
-    pub fn clear_irq(&mut self) {
-        self.irq_req = false;
+        self.curr_irq_data = val;
     }
 
     pub fn reset(&mut self) {
@@ -1904,6 +1913,9 @@ impl<T: Z80_IO> Z80<T> {
                 self.memory_pin = false;
                 self.io_pin = false;
                 self.p = 0;
+                self.init_pc = self.pc;
+                self.is_ext = false;
+                self.prefix = Prefix::NONE;
             }
             FDEPhase::READ_MEM => {
                 self.phase = FDEPhase::FETCH;
@@ -2459,6 +2471,15 @@ impl<T: Z80_IO> Z80<T> {
                         self.addr_bus = Some(self.bc());
                         self.data_bus = None;
                     },
+                    Cycle::ADDR_IS_IM2_HIGH => {
+                        self.addr_bus = Some(self.addr_bus.unwrap().wrapping_add(1));
+                        self.data_bus = None;
+                    }
+                    Cycle::ADDR_IS_IM2_LOW => {
+                        let addr = word(self.i, self.curr_irq_data);
+                        self.addr_bus = Some(addr);
+                        self.data_bus = None;
+                    }
                     Cycle::ADDR_IS_PREFIXED_HL => {
                         self.addr_bus = match self.prefix {
                             Prefix::DD => {
@@ -2513,6 +2534,7 @@ impl<T: Z80_IO> Z80<T> {
                             self.side_effect = Some(|cpu| cpu.pc = cpu.wz);
                         }
                     }
+                    Cycle::CHECK_IRQ_DATA => self.data_bus = Some(self.curr_irq_data),
                     Cycle::CHECK_REP => {
                         self.unwrite();
                         if match self.group_1 {
@@ -2793,7 +2815,7 @@ impl<T: Z80_IO> Z80<T> {
 
                 if self.microcodes.len() == 0 {
                     self.r = self.r.wrapping_add(1) & 0x7f;
-                    self.ei = 0; // todo: unknown
+                    self.ei = 0;
                     self.phase = FDEPhase::INIT;
                     let prev_prefix = self.prefix;
                     match self.side_effect {
@@ -2803,17 +2825,51 @@ impl<T: Z80_IO> Z80<T> {
                     if prev_prefix == self.prefix {
                         self.q = if self.set_q { 1 } else { 0 };
 
-                        // Check IRQs
-                        if self.irq_req {
-                            self.iff1 = 0;
-                            self.halt = false;
-                            self.phase = FDEPhase::EXECUTE;
-                            self.microcodes = match self.im {
-                                0 => panic!("Implement im 0"),
-                                1 => panic!("Implement im 1"),
-                                2 => panic!("Implement im 2"),
-                                _ => panic!("Invalid im for irq"),
-                            };
+                        if !self.is_ext {
+                            if self.ei > 0 {
+                                self.ei -= 1;
+                                if self.ei == 0 {
+                                    self.iff1 = 1;
+                                    self.iff2 = 1;
+                                }
+                                return;
+                            }
+
+                            // Check IRQs
+                            if self.irq_req && self.iff1 == 1 {
+                                self.iff1 = 0;
+                                self.iff2 = 0;
+                                self.halt = false;
+                                self.phase = FDEPhase::EXECUTE;
+                                self.is_ext = false;
+                                self.microcodes = match self.im {
+                                    0 => panic!("Implement im 0"),
+                                    1 => panic!("Implement im 1"),
+                                    2 => vec![
+                                        Cycle::NOP,
+                                        Cycle::NOP,
+                                        Cycle::NOP,
+                                        Cycle::CHECK_IRQ_DATA,
+                                        Cycle::NOP,
+                                        Cycle::NOP,
+                                        Cycle::NOP,
+                                        Cycle::PUSH_STACK,
+                                        Cycle::WRITE_PC_HIGH,
+                                        Cycle::UNWRITE,
+                                        Cycle::PUSH_STACK,
+                                        Cycle::WRITE_PC_LOW,
+                                        Cycle::UNWRITE,
+                                        Cycle::ADDR_IS_IM2_LOW,
+                                        Cycle::READ_MEM,
+                                        Cycle::PEEK_LOW,
+                                        Cycle::ADDR_IS_IM2_HIGH,
+                                        Cycle::READ_MEM,
+                                        Cycle::PEEK_HIGH,
+                                    ],
+                                    _ => panic!("Invalid im for irq"),
+                                };
+                                self.side_effect = Some(|cpu| cpu.pc = word(cpu.high_byte, cpu.low_byte));
+                            }
                         }
                     }
                 }

@@ -459,7 +459,9 @@ fn main() -> Result<(), Error> {
                 if !cpu.io.paused {
                     cpu.io.paused = true;
                 } else {
-                    cpu.step();
+                    let added = cpu.step();
+                    cyc += added;
+                    cpu.io.video.cycles += added;
                 }
             }
 
