@@ -146,6 +146,7 @@ pub struct Z80<T: Z80IO> {
     curr_irq_data: u8,
     init_pc: u16,
     is_ext: bool,
+    is_im0: bool,
 }
 
 fn bit_set(val: u8, bit: u8) -> bool {
@@ -1159,6 +1160,7 @@ impl<T: Z80IO> Z80<T> {
             curr_irq_data: 0,
             init_pc: 0,
             is_ext: false,
+            is_im0: false,
         }
     }
 
@@ -1967,8 +1969,10 @@ impl<T: Z80IO> Z80<T> {
             FDEPhase::Fetch => {
                 self.phase = FDEPhase::Execute;
 
-                self.read_byte();
-                self.addr_bus = Some(word(self.i, self.r));
+                if !self.is_im0 {
+                    self.read_byte();
+                    self.addr_bus = Some(word(self.i, self.r));
+                }
                 let op = self.data_bus.unwrap();
 
                 self.group_8 = (op / 8) % 8;
@@ -2248,7 +2252,9 @@ impl<T: Z80IO> Z80<T> {
                     ],
                     _ => vec![],
                 };
-                self.microcodes.insert(0, Cycle::Nop);
+                if !self.is_im0 {
+                    self.microcodes.insert(0, Cycle::Nop);
+                }
                 if self.prefix != Prefix::NONE {
                     match op {
                         0x34
@@ -2684,7 +2690,13 @@ impl<T: Z80IO> Z80<T> {
                             self.wz = self.pc;
                         }
                     }
-                    Cycle::Nop => self.data_bus = None,
+                    Cycle::Nop => {
+                        if self.is_im0 {
+                            self.is_im0 = false;
+                        } else {
+                            self.data_bus = None;
+                        }
+                    }
                     Cycle::PeekByte => {
                         if self.memory_pin {
                             self.data_bus = Some(self.io.peek_byte(self.addr_bus.unwrap()));
@@ -2887,16 +2899,37 @@ impl<T: Z80IO> Z80<T> {
                                 self.phase = FDEPhase::Execute;
                                 self.is_ext = false;
                                 self.microcodes = match self.im {
-                                    0 => panic!("Implement im 0"),
-                                    1 => panic!("Implement im 1"),
-                                    2 => vec![
-                                        Cycle::Nop,
+                                    0 => vec![
+                                        Cycle::Init,
                                         Cycle::Nop,
                                         Cycle::Nop,
                                         Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
+                                    ],
+                                    1 => vec![
+                                        Cycle::Init,
                                         Cycle::Nop,
                                         Cycle::Nop,
+                                        Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
+                                        Cycle::PushStack,
+                                        Cycle::WritePCHigh,
+                                        Cycle::Unwrite,
+                                        Cycle::PushStack,
+                                        Cycle::WritePCLow,
+                                        Cycle::Unwrite,
+                                    ],
+                                    2 => vec![
+                                        Cycle::Init,
                                         Cycle::Nop,
+                                        Cycle::Nop,
+                                        Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
+                                        Cycle::CheckIrqData,
                                         Cycle::PushStack,
                                         Cycle::WritePCHigh,
                                         Cycle::Unwrite,
@@ -2912,8 +2945,15 @@ impl<T: Z80IO> Z80<T> {
                                     ],
                                     _ => panic!("Invalid im for irq"),
                                 };
-                                self.side_effect =
-                                    Some(|cpu| cpu.pc = word(cpu.high_byte, cpu.low_byte));
+                                self.side_effect = match self.im {
+                                    0 => Some(|cpu| {
+                                        cpu.is_im0 = true;
+                                        cpu.phase = FDEPhase::Execute;
+                                    }),
+                                    1 => Some(|cpu| cpu.pc = 0x38),
+                                    2 => Some(|cpu| cpu.pc = word(cpu.high_byte, cpu.low_byte)),
+                                    _ => panic!("Invalid im for irq"),
+                                };
                             }
                         }
                     }

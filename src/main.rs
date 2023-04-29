@@ -511,15 +511,17 @@ fn main() -> Result<(), Error> {
                 cpu.io.video.cycles -= CPU_CLOCK / 60;
 
                 cpu.io.keyboard.set_btns_pressed(&input);
-                if cpu.io.keyboard.key_pressed != cpu.io.last_key_press {
-                    cpu.io.sub_vals[1] = cpu.io.keyboard.check_press() as u8;
-                    cpu.io.sub_vals[0] = cpu.io.keyboard.check_shift();
-                    cpu.io.sub_cmd_len = 2;
-                    cpu.assert_irq(cpu.io.key_irq_vector);
-                    cpu.io.sub_cmd = 0xe6;
-                    cpu.io.sub_obf = 0x00;
+                if cpu.io.key_irq_vector != 0 {
+                    if cpu.io.keyboard.key_pressed != cpu.io.last_key_press {
+                        cpu.io.sub_vals[1] = cpu.io.keyboard.check_press() as u8;
+                        cpu.io.sub_vals[0] = cpu.io.keyboard.check_shift();
+                        cpu.io.sub_cmd_len = 2;
+                        cpu.assert_irq(cpu.io.key_irq_vector);
+                        cpu.io.sub_cmd = 0xe6;
+                        cpu.io.sub_obf = 0x00;
+                    }
+                    cpu.io.last_key_press = cpu.io.keyboard.key_pressed;
                 }
-                cpu.io.last_key_press = cpu.io.keyboard.key_pressed;
             }
 
             cpu.io.video.display(pixels.frame_mut());
