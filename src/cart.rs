@@ -1,3 +1,4 @@
+#[derive(Savefile)]
 pub struct Cart {
     address: u32,
     rom: Vec<u8>,

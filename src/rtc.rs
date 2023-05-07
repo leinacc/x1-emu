@@ -1,3 +1,4 @@
+#[derive(Savefile)]
 pub struct RTC {
     pub day: u8,   // BCD day in month
     pub month: u8, // 1-idxed month

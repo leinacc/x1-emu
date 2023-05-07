@@ -2,7 +2,7 @@ use crate::breakpoints::Breakpoints;
 use crate::disassembler::Disassembler;
 use crate::watchpoints::Watchpoints;
 use crate::z80::Z80;
-use egui::{ClippedPrimitive, Context, TexturesDelta};
+use egui::{ClippedPrimitive, Context, TexturesDelta, TextureHandle};
 use egui_memory_editor::MemoryEditor;
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use egui_winit::winit::event_loop::EventLoopWindowTarget;
@@ -18,6 +18,7 @@ pub(crate) struct Framework {
     renderer: Renderer,
     paint_jobs: Vec<ClippedPrimitive>,
     textures: TexturesDelta,
+    texture_handle: Option<TextureHandle>,
 
     // State for the GUI
     gui: Gui,
@@ -58,6 +59,7 @@ impl Framework {
         let renderer = Renderer::new(pixels.device(), pixels.render_texture_format(), None, 1);
         let textures = TexturesDelta::default();
         let gui = Gui::new();
+        let texture_handle = None;
 
         Self {
             egui_ctx,
@@ -66,6 +68,7 @@ impl Framework {
             renderer,
             paint_jobs: Vec::new(),
             textures,
+            texture_handle,
             gui,
         }
     }
@@ -91,7 +94,8 @@ impl Framework {
     pub(crate) fn prepare(
         &mut self,
         window: &Window,
-        cpu: &mut Z80<crate::IO>,
+        cpu: &mut Z80,
+        io: &mut crate::IO,
         disassembler: &Disassembler,
         breakpoints: &mut Breakpoints,
         watchpoints: &mut Watchpoints,
@@ -103,9 +107,9 @@ impl Framework {
             egui::TopBottomPanel::top("menubar_container").show(egui_ctx, |ui| {
                 egui::menu::bar(ui, |ui| {
                     self.gui
-                        .ui(egui_ctx, ui, cpu, disassembler, breakpoints, watchpoints);
-                    cpu.io.video.ui(egui_ctx, ui);
-                    cpu.io.fdc.ui(egui_ctx, ui);
+                        .ui(egui_ctx, ui, cpu, io, disassembler, breakpoints, watchpoints);
+                    io.video.ui(egui_ctx, ui, &mut self.texture_handle);
+                    io.fdc.ui(egui_ctx, ui);
                 });
             });
         });
@@ -187,7 +191,8 @@ impl Gui {
         &mut self,
         ctx: &Context,
         ui: &mut egui::Ui,
-        cpu: &mut Z80<crate::IO>,
+        cpu: &mut Z80,
+        io: &mut crate::IO,
         disassembler: &Disassembler,
         breakpoints: &mut Breakpoints,
         watchpoints: &mut Watchpoints,
@@ -222,7 +227,7 @@ impl Gui {
         self.mem_editor.window_ui(
             ctx,
             &mut self.mem_editor_open,
-            &mut cpu.io.mem,
+            &mut io.mem,
             |mem, address| {
                 if address < 0x10000 {
                     Some(mem[address])
@@ -236,7 +241,7 @@ impl Gui {
         self.tvram_editor.window_ui(
             ctx,
             &mut self.tvram_editor_open,
-            &mut cpu.io.video.tvram,
+            &mut io.video.tvram,
             |mem, address| {
                 if address < 0x800 {
                     Some(mem[address])
@@ -250,7 +255,7 @@ impl Gui {
         egui::Window::new("Disassembly")
             .open(&mut self.disassembler_open)
             .show(ctx, |ui| {
-                disassembler.display(ui, cpu);
+                disassembler.display(ui, cpu, io);
             });
 
         egui::Window::new("Breakpoints")
@@ -269,13 +274,13 @@ impl Gui {
             .open(&mut self.watchpoints_open)
             .show(ctx, |ui| {
                 if ui
-                    .button(if cpu.io.paused { "Unpause" } else { "Pause" })
+                    .button(if io.paused { "Unpause" } else { "Pause" })
                     .clicked()
                 {
-                    cpu.io.pause_pressed = true;
+                    io.pause_pressed = true;
                 }
                 if ui.button("Step").clicked() {
-                    cpu.io.step_pressed = true;
+                    io.step_pressed = true;
                 }
             });
     }

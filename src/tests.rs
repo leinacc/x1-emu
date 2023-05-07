@@ -6537,12 +6537,13 @@ mod tests {
         for test in &tests {
             println!("Test: {}", test.name);
             let initial = &test.initial;
-            let mut cpu = Z80::new(IO {
+            let mut io = IO {
                 memory: [0; 0x10000],
                 io: [0; 0x10000],
                 ports: vec![],
                 expected_ports: vec![],
-            });
+            };
+            let mut cpu = Z80::new();
             cpu.pc = initial.pc;
             cpu.sp = initial.sp;
             cpu.a = initial.a;
@@ -6570,7 +6571,7 @@ mod tests {
             cpu.iff2 = initial.iff2;
             for i in 0..initial.ram.len() {
                 let (addr, val) = initial.ram[i];
-                cpu.io.memory[addr as usize] = val;
+                io.memory[addr as usize] = val;
             }
             match &test.ports {
                 None => (),
@@ -6578,9 +6579,9 @@ mod tests {
                     for i in 0..ports.len() {
                         let (addr, val, rw) = ports[i];
                         if rw == 'r' {
-                            cpu.io.io[addr as usize] = val;
+                            io.io[addr as usize] = val;
                         } else {
-                            cpu.io.expected_ports.push((addr, val, rw));
+                            io.expected_ports.push((addr, val, rw));
                         }
                     }
                 }
@@ -6588,10 +6589,10 @@ mod tests {
 
             // Fetch then tick execution
             let mut cycles: Vec<(Option<u16>, Option<u8>, String)> = vec![];
-            cpu.tick();
+            cpu.tick(&mut io);
             cycles.push((cpu.addr_bus, cpu.data_bus, cpu.pin_state()));
             while cpu.phase != FDEPhase::Init {
-                cpu.tick();
+                cpu.tick(&mut io);
                 let cycle = (cpu.addr_bus, cpu.data_bus, cpu.pin_state());
                 cycles.push(cycle);
             }
@@ -6630,12 +6631,12 @@ mod tests {
             assert_eq!(cpu.iff2, ffinal.iff2);
             for i in 0..ffinal.ram.len() {
                 let (addr, val) = ffinal.ram[i];
-                assert_eq!(cpu.io.peek_byte(addr), val);
+                assert_eq!(io.peek_byte(addr), val);
             }
             match &test.ports {
                 None => (),
                 Some(_) => {
-                    assert_eq!(cpu.io.ports, cpu.io.expected_ports);
+                    assert_eq!(io.ports, io.expected_ports);
                 }
             }
         }
@@ -6697,27 +6698,28 @@ mod tests {
         }
 
         let rom = get_file_as_byte_vec(&format!("tests/z80/{}", fname));
-        let mut cpu = Z80::new(IO {
+        let mut io = IO {
             memory: [0; 0x10000],
             done: false,
             c: 0,
             d: 0,
             e: 0,
             printed_bytes: vec![],
-        });
+        };
+        let mut cpu = Z80::new();
         for i in 0..rom.len() {
-            cpu.io.memory[i + 0x100] = rom[i];
+            io.memory[i + 0x100] = rom[i];
         }
         cpu.pc = 0x100;
-        cpu.io.memory[0] = 0xd3;
-        cpu.io.memory[5] = 0xdb;
-        cpu.io.memory[7] = 0xc9;
+        io.memory[0] = 0xd3;
+        io.memory[5] = 0xdb;
+        io.memory[7] = 0xc9;
         loop {
-            cpu.step();
-            cpu.io.c = cpu.c;
-            cpu.io.d = cpu.d;
-            cpu.io.e = cpu.e;
-            if cpu.io.done {
+            cpu.step(&mut io);
+            io.c = cpu.c;
+            io.d = cpu.d;
+            io.e = cpu.e;
+            if io.done {
                 break;
             }
         }
@@ -6729,7 +6731,7 @@ mod tests {
                 new_expected.push(13);
             }
         }
-        assert_eq!(cpu.io.printed_bytes, new_expected);
+        assert_eq!(io.printed_bytes, new_expected);
         let final_str = new_expected
             .into_iter()
             .map(|val| val as char)

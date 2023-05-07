@@ -1,15 +1,17 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Savefile)]
 pub enum I8255OpMode {
     BSR,
     IO,
 }
 
+#[derive(Savefile)]
 pub enum I8255IOMode {
     Simple,
     Strobed,
     // StrobedBiDirectional,
 }
 
+#[derive(Savefile)]
 pub struct I8255 {
     op_mode: I8255OpMode,
     group_b_io_mode: I8255IOMode,

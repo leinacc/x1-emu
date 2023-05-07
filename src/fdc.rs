@@ -1,5 +1,6 @@
 use egui::Context;
 
+#[derive(Savefile)]
 pub struct FDC {
     loaded: bool,
     pub sector: u8,

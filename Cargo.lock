@@ -1366,6 +1366,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
+name = "rustc_version"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
+dependencies = [
+ "semver",
+]
+
+[[package]]
 name = "rustix"
 version = "0.36.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1404,6 +1413,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "savefile"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fbf0d5b5642c8aa5495fe1e9c5cd155fe0b96c272931bbee491cbbdb25e04ec"
+dependencies = [
+ "arrayvec",
+ "bit-set",
+ "bit-vec",
+ "byteorder",
+ "indexmap",
+ "parking_lot",
+ "rustc_version",
+ "smallvec",
+]
+
+[[package]]
+name = "savefile-derive"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e9be5d90a4610ee62ae5c67addbc9c39bbcda5ebeb9be571c882b59e8c86133"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1427,6 +1463,21 @@ dependencies = [
  "smithay-client-toolkit",
  "tiny-skia",
 ]
+
+[[package]]
+name = "semver"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
+dependencies = [
+ "semver-parser",
+]
+
+[[package]]
+name = "semver-parser"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
@@ -2215,6 +2266,8 @@ dependencies = [
  "env_logger",
  "log",
  "pixels",
+ "savefile",
+ "savefile-derive",
  "serde",
  "serde_json",
  "winit",

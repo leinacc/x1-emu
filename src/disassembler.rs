@@ -17,7 +17,7 @@ pub struct Disassembler {
     lines: Vec<Vec<Token>>,
 }
 
-fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<Token>, u16) {
+fn get_tokens(cpu: &mut Z80, io: &mut crate::IO, start_pc: u16, is_first: bool) -> (Vec<Token>, u16) {
     let mut pc = start_pc;
     let mut ret = vec![];
 
@@ -29,7 +29,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
 
     // 2nd set of tokens: up to 3 bytes used for the instruction
     let mut bytes: Vec<u8> = vec![];
-    let op = cpu.io.peek_byte(pc);
+    let op = io.peek_byte(pc);
     pc += 1;
     bytes.push(op);
 
@@ -105,7 +105,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0xa9..=0xab | 0xad | 0xaf | 0xee => "xor",
 
         0xcb => {
-            param1 = cpu.io.peek_byte(pc);
+            param1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(param1);
             match param1 {
@@ -128,7 +128,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
 
         0xdd => {
-            param1 = cpu.io.peek_byte(pc);
+            param1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(param1);
             match param1 {
@@ -139,7 +139,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 0xe5 => "push",
 
                 0xcb => {
-                    param2 = cpu.io.peek_byte(pc);
+                    param2 = io.peek_byte(pc);
                     pc += 1;
                     bytes.push(param2);
                     match param2 {
@@ -152,7 +152,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
 
         0xed => {
-            param1 = cpu.io.peek_byte(pc);
+            param1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(param1);
             match param1 {
@@ -174,7 +174,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
 
         0xfd => {
-            param1 = cpu.io.peek_byte(pc);
+            param1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(param1);
             match param1 {
@@ -370,9 +370,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x01 | 0x11 | 0x21 | 0x31 | 0xc2 | 0xc3 | 0xc4 | 0xca | 0xcc | 0xcd | 0xd2 | 0xd4
         | 0xda | 0xdc | 0xe2 | 0xf2 | 0xfa | 0xfc => {
             // a16
-            let op1 = cpu.io.peek_byte(pc);
+            let op1 = io.peek_byte(pc);
             pc += 1;
-            let op2 = cpu.io.peek_byte(pc);
+            let op2 = io.peek_byte(pc);
             pc += 1;
             bytes.push(op1);
             bytes.push(op2);
@@ -385,7 +385,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         0x06 | 0x0e | 0x16 | 0x1e | 0x26 | 0x2e | 0x36 | 0x3e | 0xc6 | 0xd6 | 0xe6 | 0xee
         | 0xf6 | 0xfe => {
             // d8
-            let op1 = cpu.io.peek_byte(pc);
+            let op1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(op1);
             ins_tokens.push(Token {
@@ -395,7 +395,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0xdb => {
             // (d8)
-            let op1 = cpu.io.peek_byte(pc);
+            let op1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(op1);
             ins_tokens.push(Token {
@@ -405,7 +405,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0xd3 => {
             // (d8),
-            let op1 = cpu.io.peek_byte(pc);
+            let op1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(op1);
             ins_tokens.push(Token {
@@ -415,7 +415,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 => {
             // r8
-            let op1 = cpu.io.peek_byte(pc);
+            let op1 = io.peek_byte(pc);
             pc += 1;
             bytes.push(op1);
             let op1 = op1 as u16;
@@ -431,9 +431,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0x22 | 0x32 => {
             // (a16),
-            let op1 = cpu.io.peek_byte(pc);
+            let op1 = io.peek_byte(pc);
             pc += 1;
-            let op2 = cpu.io.peek_byte(pc);
+            let op2 = io.peek_byte(pc);
             pc += 1;
             bytes.push(op1);
             bytes.push(op2);
@@ -445,9 +445,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
         }
         0x2a | 0x3a => {
             // (a16)
-            let op1 = cpu.io.peek_byte(pc);
+            let op1 = io.peek_byte(pc);
             pc += 1;
-            let op2 = cpu.io.peek_byte(pc);
+            let op2 = io.peek_byte(pc);
             pc += 1;
             bytes.push(op1);
             bytes.push(op2);
@@ -550,9 +550,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
             match param1 {
                 0x21 => {
                     // a16
-                    let op1 = cpu.io.peek_byte(pc);
+                    let op1 = io.peek_byte(pc);
                     pc += 1;
-                    let op2 = cpu.io.peek_byte(pc);
+                    let op2 = io.peek_byte(pc);
                     pc += 1;
                     bytes.push(op1);
                     bytes.push(op2);
@@ -564,7 +564,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 }
                 0x4e | 0x7e | 0xbe => {
                     // d8)
-                    let op1 = cpu.io.peek_byte(pc);
+                    let op1 = io.peek_byte(pc);
                     pc += 1;
                     bytes.push(op1);
                     ins_tokens.push(Token {
@@ -576,7 +576,7 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                     match param2 {
                         0x06 => {
                             // d8)
-                            let op1 = cpu.io.peek_byte(pc);
+                            let op1 = io.peek_byte(pc);
                             pc += 1;
                             bytes.push(op1);
                             ins_tokens.push(Token {
@@ -601,9 +601,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 }
                 0x4b | 0x5b | 0x7b => {
                     // (a16)
-                    let op1 = cpu.io.peek_byte(pc);
+                    let op1 = io.peek_byte(pc);
                     pc += 1;
-                    let op2 = cpu.io.peek_byte(pc);
+                    let op2 = io.peek_byte(pc);
                     pc += 1;
                     bytes.push(op1);
                     bytes.push(op2);
@@ -615,9 +615,9 @@ fn get_tokens(cpu: &mut Z80<crate::IO>, start_pc: u16, is_first: bool) -> (Vec<T
                 }
                 0x53 | 0x73 => {
                     // (a16),
-                    let op1 = cpu.io.peek_byte(pc);
+                    let op1 = io.peek_byte(pc);
                     pc += 1;
-                    let op2 = cpu.io.peek_byte(pc);
+                    let op2 = io.peek_byte(pc);
                     pc += 1;
                     bytes.push(op1);
                     bytes.push(op2);
@@ -815,21 +815,21 @@ impl Disassembler {
         Self { lines: vec![] }
     }
 
-    pub fn prepare(&mut self, cpu: &mut Z80<crate::IO>) {
+    pub fn prepare(&mut self, cpu: &mut Z80, io: &mut crate::IO) {
         self.lines = vec![];
 
         let mut pc = cpu.pc;
         for _ in 0..=30 {
             let tokens;
             (tokens, pc) = get_tokens(
-                cpu, pc, // cpu.pc != 0x904b,
+                cpu, io, pc, // cpu.pc != 0x904b,
                 false,
             );
             self.lines.push(tokens);
         }
     }
 
-    pub fn display(&self, ui: &mut Ui, cpu: &mut Z80<crate::IO>) {
+    pub fn display(&self, ui: &mut Ui, cpu: &mut Z80, io: &mut crate::IO) {
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new("PC:")
@@ -935,7 +935,7 @@ impl Disassembler {
                     .text_style(MONOSPACE.clone()),
             );
             ui.label(
-                RichText::new(format!("{:02x}", cpu.io.key_irq_vector))
+                RichText::new(format!("{:02x}", io.key_irq_vector))
                     .color(WHITE_COLOR)
                     .text_style(MONOSPACE.clone()),
             );

@@ -5,7 +5,7 @@ pub trait Z80IO {
     fn write_io(&mut self, addr: u16, val: u8);
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Savefile, Clone)]
 pub enum FDEPhase {
     Init,
     ReadMem,
@@ -13,7 +13,7 @@ pub enum FDEPhase {
     Execute,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Savefile)]
 enum Prefix {
     DD,
     FD,
@@ -24,6 +24,7 @@ const OP_CALL_COND: u16 = 0x700;
 const OP_CHECK_RET: u16 = 0x701;
 const OP_IM: u16 = 0x702;
 
+#[derive(Savefile, Clone)]
 enum Cycle {
     AddrIsALow,
     AddrIsBC,
@@ -99,7 +100,9 @@ const FLAG_PV: u8 = 0x04; // parity/overflow
 const FLAG_N: u8 = 0x02; // add/subtract
 const FLAG_C: u8 = 0x01; // carry
 
-pub struct Z80<T: Z80IO> {
+
+#[derive(Savefile, Clone)]
+pub struct Z80 {
     pub pc: u16,
     pub sp: u16,
     pub a: u8,
@@ -126,7 +129,6 @@ pub struct Z80<T: Z80IO> {
     pub iff1: u8,
     pub iff2: u8,
 
-    pub io: T,
     pub addr_bus: Option<u16>,
     pub data_bus: Option<u8>,
     pub phase: FDEPhase,
@@ -189,7 +191,7 @@ fn word(high: u8, low: u8) -> u16 {
     ((high as u16) << 8) | (low as u16)
 }
 
-fn bit<T: Z80IO>(cpu: &mut Z80<T>) {
+fn bit(cpu: &mut Z80) {
     let bit = cpu.group_8;
     cpu.f &= 0xff - (FLAG_N | FLAG_PV | 0x28 | FLAG_Z | FLAG_S);
 
@@ -209,7 +211,7 @@ fn bit<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn add_prefixed_hl_rp<T: Z80IO>(cpu: &mut Z80<T>, rp: u16) {
+fn add_prefixed_hl_rp(cpu: &mut Z80, rp: u16) {
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28);
     let base = cpu.prefixed_hl();
     let new = base.wrapping_add(rp);
@@ -230,7 +232,7 @@ fn add_prefixed_hl_rp<T: Z80IO>(cpu: &mut Z80<T>, rp: u16) {
     cpu.f |= ((new >> 8) as u8) & 0x28;
 }
 
-fn ccf<T: Z80IO>(cpu: &mut Z80<T>) {
+fn ccf(cpu: &mut Z80) {
     cpu.f &= 0xff - (FLAG_N | FLAG_H);
     if cpu.flag(FLAG_C) {
         cpu.f |= FLAG_H;
@@ -242,13 +244,13 @@ fn ccf<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.f |= cpu.a & 0x28;
 }
 
-fn cpl<T: Z80IO>(cpu: &mut Z80<T>) {
+fn cpl(cpu: &mut Z80) {
     cpu.f &= 0xff - 0x28;
     cpu.a ^= 0xff;
     cpu.f |= (cpu.a & 0x28) | FLAG_N | FLAG_H;
 }
 
-fn daa<T: Z80IO>(cpu: &mut Z80<T>) {
+fn daa(cpu: &mut Z80) {
     let a = cpu.a;
     let n = cpu.flag(FLAG_N);
     let hc = cpu.flag(FLAG_H);
@@ -292,30 +294,30 @@ fn dec_word(high: &mut u8, low: &mut u8) {
     }
 }
 
-fn di<T: Z80IO>(cpu: &mut Z80<T>) {
+fn di(cpu: &mut Z80) {
     cpu.iff1 = 0;
     cpu.iff2 = 0;
 }
 
-fn ei<T: Z80IO>(cpu: &mut Z80<T>) {
+fn ei(cpu: &mut Z80) {
     cpu.ei = 2;
     cpu.iff1 = 1;
     cpu.iff2 = 1;
 }
 
-fn ex_af_af_<T: Z80IO>(cpu: &mut Z80<T>) {
+fn ex_af_af_(cpu: &mut Z80) {
     let new_shadow = word(cpu.a, cpu.f);
     cpu.a = (cpu.af_ >> 8) as u8;
     cpu.f = cpu.af_ as u8;
     cpu.af_ = new_shadow;
 }
 
-fn ex_de_hl<T: Z80IO>(cpu: &mut Z80<T>) {
+fn ex_de_hl(cpu: &mut Z80) {
     std::mem::swap::<u8>(&mut cpu.d, &mut cpu.h);
     std::mem::swap::<u8>(&mut cpu.e, &mut cpu.l);
 }
 
-fn exx<T: Z80IO>(cpu: &mut Z80<T>) {
+fn exx(cpu: &mut Z80) {
     let new_shadow = cpu.bc();
     cpu.b = (cpu.bc_ >> 8) as u8;
     cpu.c = cpu.bc_ as u8;
@@ -332,7 +334,7 @@ fn exx<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.hl_ = new_shadow;
 }
 
-fn get_cb_op<T: Z80IO>(cpu: &mut Z80<T>) {
+fn get_cb_op(cpu: &mut Z80) {
     cpu.phase = FDEPhase::Execute;
     if cpu.prefix == Prefix::NONE {
         cpu.addr_bus = Some(word(cpu.i, cpu.r));
@@ -494,7 +496,7 @@ fn get_cb_op<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.is_ext = true;
 }
 
-fn get_ed_op<T: Z80IO>(cpu: &mut Z80<T>) {
+fn get_ed_op(cpu: &mut Z80) {
     cpu.phase = FDEPhase::Execute;
     cpu.addr_bus = Some(word(cpu.i, cpu.r));
     let op = cpu.data_bus.unwrap();
@@ -736,7 +738,7 @@ fn get_ed_op<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.is_ext = true;
 }
 
-fn prefixed_hl_is_word<T: Z80IO>(cpu: &mut Z80<T>) {
+fn prefixed_hl_is_word(cpu: &mut Z80) {
     cpu.wz = word(cpu.high_byte, cpu.low_byte);
     match cpu.prefix {
         Prefix::DD => cpu.ix = cpu.wz,
@@ -748,7 +750,7 @@ fn prefixed_hl_is_word<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn in_reg_bc<T: Z80IO>(cpu: &mut Z80<T>) {
+fn in_reg_bc(cpu: &mut Z80) {
     cpu.f &= 0xff - (FLAG_N | FLAG_H | 0x28 | FLAG_Z | FLAG_S);
     let val = cpu.data_bus.unwrap();
     if cpu.group_8 != 6 {
@@ -772,7 +774,7 @@ fn inc_word(high: &mut u8, low: &mut u8) {
     }
 }
 
-fn jp_cond<T: Z80IO>(cpu: &mut Z80<T>) {
+fn jp_cond(cpu: &mut Z80) {
     cpu.wz = word(cpu.high_byte, cpu.low_byte);
     if match cpu.group_8 {
         0 => !cpu.flag(FLAG_Z),
@@ -789,7 +791,7 @@ fn jp_cond<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rla<T: Z80IO>(cpu: &mut Z80<T>) {
+fn rla(cpu: &mut Z80) {
     let high_bit = bit_set(cpu.a, 7);
     let carry = cpu.flag(FLAG_C);
     cpu.a <<= 1;
@@ -803,7 +805,7 @@ fn rla<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rlca<T: Z80IO>(cpu: &mut Z80<T>) {
+fn rlca(cpu: &mut Z80) {
     let high_bit = bit_set(cpu.a, 7);
     cpu.a <<= 1;
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28);
@@ -814,7 +816,7 @@ fn rlca<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rra<T: Z80IO>(cpu: &mut Z80<T>) {
+fn rra(cpu: &mut Z80) {
     let low_bit = bit_set(cpu.a, 0);
     let carry = cpu.flag(FLAG_C);
     cpu.a >>= 1;
@@ -828,7 +830,7 @@ fn rra<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rrca<T: Z80IO>(cpu: &mut Z80<T>) {
+fn rrca(cpu: &mut Z80) {
     let low_bit = bit_set(cpu.a, 0);
     cpu.a >>= 1;
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_H | 0x28);
@@ -839,12 +841,12 @@ fn rrca<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn rst<T: Z80IO>(cpu: &mut Z80<T>) {
+fn rst(cpu: &mut Z80) {
     cpu.wz = cpu.group_8 as u16 * 8;
     cpu.pc = cpu.wz;
 }
 
-fn adc_hl_rp<T: Z80IO>(cpu: &mut Z80<T>) {
+fn adc_hl_rp(cpu: &mut Z80) {
     let carry = cpu.f & FLAG_C;
     cpu.f &= 0xff - (FLAG_C | FLAG_N | FLAG_PV | 0x28 | FLAG_H | FLAG_Z | FLAG_S);
     let hl = cpu.hl();
@@ -889,7 +891,7 @@ fn adc_hl_rp<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn sbc_hl_rp<T: Z80IO>(cpu: &mut Z80<T>) {
+fn sbc_hl_rp(cpu: &mut Z80) {
     let carry: u8 = cpu.f & FLAG_C;
     cpu.f &= 0xff - (FLAG_C | FLAG_PV | 0x28 | FLAG_H | FLAG_Z | FLAG_S);
     let hl = cpu.hl();
@@ -934,7 +936,7 @@ fn sbc_hl_rp<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-fn scf<T: Z80IO>(cpu: &mut Z80<T>) {
+fn scf(cpu: &mut Z80) {
     cpu.f &= 0xff - (FLAG_N | FLAG_H);
     if cpu.q != 0 {
         cpu.f &= 0xff - 0x28;
@@ -942,22 +944,22 @@ fn scf<T: Z80IO>(cpu: &mut Z80<T>) {
     cpu.f |= FLAG_C | (cpu.a & 0x28);
 }
 
-fn set_af<T: Z80IO>(cpu: &mut Z80<T>) {
+fn set_af(cpu: &mut Z80) {
     cpu.a = cpu.high_byte;
     cpu.f = cpu.low_byte;
 }
 
-fn set_bc<T: Z80IO>(cpu: &mut Z80<T>) {
+fn set_bc(cpu: &mut Z80) {
     cpu.b = cpu.high_byte;
     cpu.c = cpu.low_byte;
 }
 
-fn set_de<T: Z80IO>(cpu: &mut Z80<T>) {
+fn set_de(cpu: &mut Z80) {
     cpu.d = cpu.high_byte;
     cpu.e = cpu.low_byte;
 }
 
-fn set_prefixed_hl<T: Z80IO>(cpu: &mut Z80<T>) {
+fn set_prefixed_hl(cpu: &mut Z80) {
     match cpu.prefix {
         Prefix::DD => cpu.ix = word(cpu.high_byte, cpu.low_byte),
         Prefix::FD => cpu.iy = word(cpu.high_byte, cpu.low_byte),
@@ -968,8 +970,8 @@ fn set_prefixed_hl<T: Z80IO>(cpu: &mut Z80<T>) {
     }
 }
 
-impl<T: Z80IO> Z80<T> {
-    pub fn new(io: T) -> Z80<T> {
+impl Z80 {
+    pub fn new() -> Z80 {
         Z80 {
             pc: 0,
             sp: 0,
@@ -997,7 +999,6 @@ impl<T: Z80IO> Z80<T> {
             iff1: 0,
             iff2: 0,
 
-            io: io,
             addr_bus: None,
             data_bus: None,
             phase: FDEPhase::Init,
@@ -1235,19 +1236,19 @@ impl<T: Z80IO> Z80<T> {
         }
     }
 
-    fn read_byte(&mut self) {
-        self.data_bus = Some(self.io.peek_byte(self.pc));
+    fn read_byte(&mut self, io: &mut dyn Z80IO) {
+        self.data_bus = Some(io.peek_byte(self.pc));
         self.pc = self.pc.wrapping_add(1);
     }
 
-    fn do_write(&mut self) {
+    fn do_write(&mut self, io: &mut dyn Z80IO) {
         let addr = self.addr_bus.unwrap();
         let val = self.data_bus.unwrap();
         if self.memory_pin {
-            self.io.write_byte(addr, val);
+            io.write_byte(addr, val);
         }
         if self.io_pin {
-            self.io.write_io(addr, val);
+            io.write_io(addr, val);
         }
     }
 
@@ -1702,15 +1703,15 @@ impl<T: Z80IO> Z80<T> {
         )
     }
 
-    fn fetch_high(&mut self) {
-        self.read_byte();
+    fn fetch_high(&mut self, io: &mut dyn Z80IO) {
+        self.read_byte(io);
         self.read_pin = false;
         self.memory_pin = false;
         self.high_byte = self.data_bus.unwrap();
     }
 
-    fn fetch_low(&mut self) {
-        self.read_byte();
+    fn fetch_low(&mut self, io: &mut dyn Z80IO) {
+        self.read_byte(io);
         self.read_pin = false;
         self.memory_pin = false;
         self.low_byte = self.data_bus.unwrap();
@@ -1797,17 +1798,17 @@ impl<T: Z80IO> Z80<T> {
         self.io_pin = false;
     }
 
-    pub fn step(&mut self) -> u32 {
-        self.tick();
+    pub fn step(&mut self, io: &mut dyn Z80IO) -> u32 {
+        self.tick(io);
         let mut cyc = 1;
         while self.phase != FDEPhase::Init {
-            self.tick();
+            self.tick(io);
             cyc += 1;
         }
         cyc
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, io: &mut dyn Z80IO) {
         match self.phase {
             FDEPhase::Init => {
                 self.phase = FDEPhase::ReadMem;
@@ -1832,7 +1833,7 @@ impl<T: Z80IO> Z80<T> {
                 self.phase = FDEPhase::Execute;
 
                 if !self.is_im0 {
-                    self.read_byte();
+                    self.read_byte(io);
                     self.addr_bus = Some(word(self.i, self.r));
                 }
                 let op = self.data_bus.unwrap();
@@ -2272,7 +2273,7 @@ impl<T: Z80IO> Z80<T> {
                         self.data_bus = None;
                     }
                     Cycle::CallCond => {
-                        self.fetch_high();
+                        self.fetch_high(io);
                         self.wz = word(self.high_byte, self.low_byte);
                         if match self.group_8 {
                             0 => !self.flag(FLAG_Z),
@@ -2337,21 +2338,21 @@ impl<T: Z80IO> Z80<T> {
                         self.low_byte = self.dec_reg(self.prefixed_group_reg_r(self.group_8));
                         self.data_bus = None;
                     }
-                    Cycle::FetchHigh => self.fetch_high(),
+                    Cycle::FetchHigh => self.fetch_high(io),
                     Cycle::FetchIndHigh => {
                         self.wz = self.addr_bus.unwrap();
-                        self.data_bus = Some(self.io.peek_byte(self.wz));
+                        self.data_bus = Some(io.peek_byte(self.wz));
                         self.read_pin = false;
                         self.memory_pin = false;
                         self.high_byte = self.data_bus.unwrap();
                     }
                     Cycle::FetchIndLow => {
-                        self.data_bus = Some(self.io.peek_byte(self.addr_bus.unwrap()));
+                        self.data_bus = Some(io.peek_byte(self.addr_bus.unwrap()));
                         self.read_pin = false;
                         self.memory_pin = false;
                         self.low_byte = self.data_bus.unwrap();
                     }
-                    Cycle::FetchLow => self.fetch_low(),
+                    Cycle::FetchLow => self.fetch_low(io),
                     Cycle::IncLow => {
                         self.low_byte = self.inc_reg(self.prefixed_group_reg_r(self.group_8));
                         self.data_bus = None;
@@ -2371,7 +2372,7 @@ impl<T: Z80IO> Z80<T> {
                         self.data_bus = None;
                     }
                     Cycle::JrCond => {
-                        self.fetch_low();
+                        self.fetch_low(io);
                         let jump = match self.group_8 {
                             2 => {
                                 self.b = self.b.wrapping_sub(1);
@@ -2407,28 +2408,28 @@ impl<T: Z80IO> Z80<T> {
                     }
                     Cycle::PeekByte => {
                         if self.memory_pin {
-                            self.data_bus = Some(self.io.peek_byte(self.addr_bus.unwrap()));
+                            self.data_bus = Some(io.peek_byte(self.addr_bus.unwrap()));
                             self.memory_pin = false;
                         }
                         if self.io_pin {
-                            self.data_bus = Some(self.io.peek_io(self.addr_bus.unwrap()));
+                            self.data_bus = Some(io.peek_io(self.addr_bus.unwrap()));
                             self.io_pin = false;
                         }
                         self.read_pin = false;
                     }
                     Cycle::PeekHigh => {
-                        self.high_byte = self.io.peek_byte(self.addr_bus.unwrap());
+                        self.high_byte = io.peek_byte(self.addr_bus.unwrap());
                         self.data_bus = Some(self.high_byte);
                         self.read_pin = false;
                         self.memory_pin = false;
                     }
                     Cycle::PeekLow => {
                         if self.memory_pin {
-                            self.low_byte = self.io.peek_byte(self.addr_bus.unwrap());
+                            self.low_byte = io.peek_byte(self.addr_bus.unwrap());
                             self.memory_pin = false;
                         }
                         if self.io_pin {
-                            self.low_byte = self.io.peek_io(self.addr_bus.unwrap());
+                            self.low_byte = io.peek_io(self.addr_bus.unwrap());
                             self.io_pin = false;
                         }
                         self.data_bus = Some(self.low_byte);
@@ -2574,7 +2575,7 @@ impl<T: Z80IO> Z80<T> {
                 }
 
                 if self.write_pin {
-                    self.do_write();
+                    self.do_write(io);
                 }
 
                 if self.microcodes.len() == 0 {
@@ -2660,7 +2661,7 @@ impl<T: Z80IO> Z80<T> {
     }
 
     fn exec_side_effect(&mut self) {
-        let f: Option<fn (&mut Z80<T>)> = match self.curr_op & 0xff00 {
+        let f: Option<fn (&mut Z80)> = match self.curr_op & 0xff00 {
             0x000|0x200|0x500 => match self.curr_op & 0x00ff {
                 0x01 | 0xc1 => Some(set_bc),
                 0x02 => Some(|cpu| {

@@ -25,6 +25,8 @@ use crate::breakpoints::Breakpoints;
 use crate::disassembler::Disassembler;
 use crate::watchpoints::Watchpoints;
 
+#[macro_use] extern crate savefile_derive;
+
 mod breakpoints;
 mod cart;
 mod constants;
@@ -39,6 +41,7 @@ mod video;
 mod watchpoints;
 mod z80;
 
+#[derive(Savefile)]
 pub struct IO {
     mem: [u8; 0x10000],
     ipl_loaded: bool,
@@ -368,7 +371,7 @@ fn main() -> Result<(), Error> {
     let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
     // let floppy_data = vec![0; 327680];
 
-    let mut cpu = Z80::new(IO {
+    let mut io = IO {
         mem: [0; 0x10000],
         ipl_loaded: true,
         ipl: [0; 0x1000],
@@ -398,11 +401,15 @@ fn main() -> Result<(), Error> {
         paused: true,
         pause_pressed: false,
         step_pressed: false,
-    });
+    };
+
+    // todo: backup_cpu using Z80's Clone trait to trip breakpoints/watchpoints
+    // without tripping IO side effects
+    let mut cpu = Z80::new();
     cpu.reset();
 
     for (i, byte) in ipl.iter().enumerate() {
-        cpu.io.ipl[i] = *byte;
+        io.ipl[i] = *byte;
     }
 
     env_logger::init();
@@ -460,19 +467,19 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
-            if cpu.io.pause_pressed {
-                cpu.io.pause_pressed = false;
-                cpu.io.paused = !cpu.io.paused;
+            if io.pause_pressed {
+                io.pause_pressed = false;
+                io.paused = !io.paused;
             }
 
-            if cpu.io.step_pressed {
-                cpu.io.step_pressed = false;
-                if !cpu.io.paused {
-                    cpu.io.paused = true;
+            if io.step_pressed {
+                io.step_pressed = false;
+                if !io.paused {
+                    io.paused = true;
                 } else {
-                    let added = cpu.step();
+                    let added = cpu.step(&mut io);
                     cyc += added;
-                    cpu.io.video.cycles += added;
+                    io.video.cycles += added;
                 }
             }
 
@@ -491,40 +498,40 @@ fn main() -> Result<(), Error> {
                 framework.resize(size.width, size.height);
             }
 
-            while !cpu.io.paused && cyc < CPU_CLOCK / 60 {
-                let added = cpu.step();
+            while !io.paused && cyc < CPU_CLOCK / 60 {
+                let added = cpu.step(&mut io);
                 cyc += added;
-                cpu.io.video.cycles += added;
+                io.video.cycles += added;
 
-                cpu.io.paused = breakpoints.check(cpu.pc);
-                if !cpu.io.paused {
-                    cpu.io.paused = watchpoints.check(
-                        cpu.io.last_addr,
-                        cpu.io.last_is_read,
-                        cpu.io.last_is_mem,
+                io.paused = breakpoints.check(cpu.pc);
+                if !io.paused {
+                    io.paused = watchpoints.check(
+                        io.last_addr,
+                        io.last_is_read,
+                        io.last_is_mem,
                     );
                 }
             }
 
             if cyc >= CPU_CLOCK / 60 {
                 cyc -= CPU_CLOCK / 60;
-                cpu.io.video.cycles -= CPU_CLOCK / 60;
+                io.video.cycles -= CPU_CLOCK / 60;
 
-                cpu.io.keyboard.set_btns_pressed(&input);
-                if cpu.io.key_irq_vector != 0 {
-                    if cpu.io.keyboard.key_pressed != cpu.io.last_key_press {
-                        cpu.io.sub_vals[1] = cpu.io.keyboard.check_press() as u8;
-                        cpu.io.sub_vals[0] = cpu.io.keyboard.check_shift();
-                        cpu.io.sub_cmd_len = 2;
-                        cpu.assert_irq(cpu.io.key_irq_vector);
-                        cpu.io.sub_cmd = 0xe6;
-                        cpu.io.sub_obf = 0x00;
+                io.keyboard.set_btns_pressed(&input);
+                if io.key_irq_vector != 0 {
+                    if io.keyboard.key_pressed != io.last_key_press {
+                        io.sub_vals[1] = io.keyboard.check_press() as u8;
+                        io.sub_vals[0] = io.keyboard.check_shift();
+                        io.sub_cmd_len = 2;
+                        cpu.assert_irq(io.key_irq_vector);
+                        io.sub_cmd = 0xe6;
+                        io.sub_obf = 0x00;
                     }
-                    cpu.io.last_key_press = cpu.io.keyboard.key_pressed;
+                    io.last_key_press = io.keyboard.key_pressed;
                 }
             }
 
-            cpu.io.video.display(pixels.frame_mut());
+            io.video.display(pixels.frame_mut());
             window.request_redraw();
         }
 
@@ -535,10 +542,11 @@ fn main() -> Result<(), Error> {
             }
             Event::RedrawRequested(_) => {
                 // Prepare egui
-                disassembler.prepare(&mut cpu);
+                disassembler.prepare(&mut cpu, &mut io);
                 framework.prepare(
                     &window,
                     &mut cpu,
+                    &mut io,
                     &disassembler,
                     &mut breakpoints,
                     &mut watchpoints,

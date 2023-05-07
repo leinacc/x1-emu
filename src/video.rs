@@ -3,6 +3,7 @@ use egui::Context;
 
 const PAL_SQUARE_PX: usize = 16;
 
+#[derive(Savefile)]
 pub struct HD6845S {
     pub addr: u8,
     horiz_char_total: u8,
@@ -68,6 +69,7 @@ impl HD6845S {
     }
 }
 
+#[derive(Savefile)]
 pub struct Video {
     bitmapbank2: bool,
     bitmapdata0: [u8; 0xc000],
@@ -86,7 +88,6 @@ pub struct Video {
     pub cycles: u32,
     frame_cnt: u8,
 
-    texture_handle: Option<egui::TextureHandle>,
     palettes_open: bool,
     palettes_canvas: [u8; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
     bitmap0_open: bool,
@@ -220,7 +221,6 @@ impl Video {
             cycles: 0,
             frame_cnt: 0,
 
-            texture_handle: None,
             palettes_open: false,
             palettes_canvas: [0; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
             bitmap0_open: false,
@@ -482,7 +482,7 @@ impl Video {
         (self.cycles as f64 / cyc_per_line) as u16
     }
 
-    pub fn ui(&mut self, ctx: &Context, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ctx: &Context, ui: &mut egui::Ui, tex_handle: &mut Option<egui::TextureHandle>) {
         ui.menu_button("Video", |ui| {
             if ui.button("Palettes").clicked() {
                 self.palettes_open = true;
@@ -506,7 +506,7 @@ impl Video {
             .open(&mut self.palettes_open)
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle =
-                    self.texture_handle.insert(ui.ctx().load_texture(
+                    tex_handle.insert(ui.ctx().load_texture(
                         "palettes",
                         egui::ColorImage::from_rgba_unmultiplied(
                             [8 * PAL_SQUARE_PX, 2 * PAL_SQUARE_PX],
@@ -521,7 +521,7 @@ impl Video {
             .open(&mut self.bitmap0_open)
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle =
-                    self.texture_handle.insert(ui.ctx().load_texture(
+                    tex_handle.insert(ui.ctx().load_texture(
                         "bitmap0",
                         egui::ColorImage::from_rgba_unmultiplied(
                             [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
@@ -543,7 +543,7 @@ impl Video {
             .open(&mut self.pcgrom_open)
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle =
-                    self.texture_handle.insert(ui.ctx().load_texture(
+                    tex_handle.insert(ui.ctx().load_texture(
                         "pcgrom",
                         egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgrom_canvas),
                         Default::default(),
@@ -555,7 +555,7 @@ impl Video {
             .open(&mut self.pcgram_open)
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle =
-                    self.texture_handle.insert(ui.ctx().load_texture(
+                    tex_handle.insert(ui.ctx().load_texture(
                         "pcgram",
                         egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgram_canvas),
                         Default::default(),

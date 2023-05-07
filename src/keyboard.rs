@@ -52,6 +52,7 @@ const KEYMOD_SHIFT: u8 = 0x02;
 // const KEYMOD_CAPS : u8 = 0x08; // todo: graphical keyboard
 // const KEYMOD_GRAPH: u8 = 0x10; // todo: graphical keyboard
 
+#[derive(Savefile)]
 pub struct Keyboard {
     pub key_pressed: u8,
     // keymods_active: u8, // todo: graphical keyboard
