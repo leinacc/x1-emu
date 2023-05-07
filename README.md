@@ -4,8 +4,7 @@ WIP Sharp X1 emulator
 
 ## TODO
 
-- [ ] save files
-- [ ] save states
+- [x] save files
 - [ ] throttle
 - [ ] larger vram viewers
 - [ ] load rom/floppy/cassette from filesystem

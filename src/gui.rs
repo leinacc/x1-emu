@@ -1,13 +1,13 @@
-use crate::breakpoints::Breakpoints;
+use crate::{breakpoints::Breakpoints, video::VramViewers};
 use crate::disassembler::Disassembler;
 use crate::watchpoints::Watchpoints;
-use crate::z80::Z80;
 use egui::{ClippedPrimitive, Context, TextureHandle, TexturesDelta};
 use egui_memory_editor::MemoryEditor;
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use egui_winit::winit::event_loop::EventLoopWindowTarget;
 use egui_winit::winit::window::Window;
 use pixels::{wgpu, PixelsContext};
+use savefile::save_file;
 
 /// Manages all state required for rendering egui over `Pixels`.
 pub(crate) struct Framework {
@@ -94,11 +94,11 @@ impl Framework {
     pub(crate) fn prepare(
         &mut self,
         window: &Window,
-        cpu: &mut Z80,
-        io: &mut crate::IO,
+        system: &mut crate::System,
         disassembler: &Disassembler,
         breakpoints: &mut Breakpoints,
         watchpoints: &mut Watchpoints,
+        vram_viewers: &mut VramViewers,
     ) {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
@@ -109,14 +109,16 @@ impl Framework {
                     self.gui.ui(
                         egui_ctx,
                         ui,
-                        cpu,
-                        io,
+                        system,
                         disassembler,
                         breakpoints,
                         watchpoints,
                     );
-                    io.video.ui(egui_ctx, ui, &mut self.texture_handle);
-                    io.fdc.ui(egui_ctx, ui);
+                    let palettes = system.io.video.palettes;
+                    vram_viewers.draw_pcgram(palettes, system.io.video.pcg_ram);
+                    vram_viewers.draw_palettes(palettes);
+                    system.io.video.ui(egui_ctx, ui, &mut self.texture_handle, vram_viewers);
+                    system.io.fdc.ui(egui_ctx, ui);
                 });
             });
         });
@@ -198,8 +200,7 @@ impl Gui {
         &mut self,
         ctx: &Context,
         ui: &mut egui::Ui,
-        cpu: &mut Z80,
-        io: &mut crate::IO,
+        system: &mut crate::System,
         disassembler: &Disassembler,
         breakpoints: &mut Breakpoints,
         watchpoints: &mut Watchpoints,
@@ -234,7 +235,7 @@ impl Gui {
         self.mem_editor.window_ui(
             ctx,
             &mut self.mem_editor_open,
-            &mut io.mem,
+            &mut system.io.mem,
             |mem, address| {
                 if address < 0x10000 {
                     Some(mem[address])
@@ -248,7 +249,7 @@ impl Gui {
         self.tvram_editor.window_ui(
             ctx,
             &mut self.tvram_editor_open,
-            &mut io.video.tvram,
+            &mut system.io.video.tvram,
             |mem, address| {
                 if address < 0x800 {
                     Some(mem[address])
@@ -262,7 +263,7 @@ impl Gui {
         egui::Window::new("Disassembly")
             .open(&mut self.disassembler_open)
             .show(ctx, |ui| {
-                disassembler.display(ui, cpu, io);
+                disassembler.display(ui, &mut system.cpu, &mut system.io);
             });
 
         egui::Window::new("Breakpoints")
@@ -281,16 +282,22 @@ impl Gui {
             .open(&mut self.watchpoints_open)
             .show(ctx, |ui| {
                 if ui
-                    .button(if io.paused { "Unpause" } else { "Pause" })
+                    .button(if system.io.paused { "Unpause" } else { "Pause" })
                     .clicked()
                 {
-                    io.pause_pressed = true;
+                    system.io.pause_pressed = true;
                 }
                 if ui.button("Step").clicked() {
-                    io.step_pressed = true;
+                    system.io.step_pressed = true;
                 }
                 if ui.button("Reset").clicked() {
-                    io.reset_pressed = true;
+                    system.io.reset_pressed = true;
+                }
+                if ui.button("Save state").clicked() {
+                    save_file("x1.sav", 0, system).unwrap();
+                }
+                if ui.button("Load state").clicked() {
+                    system.load_state_clicked = true;
                 }
             });
     }

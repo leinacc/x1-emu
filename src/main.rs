@@ -4,7 +4,7 @@ use crate::gui::Framework;
 use crate::i8255::I8255;
 use crate::keyboard::Keyboard;
 use crate::rtc::RTC;
-use crate::video::Video;
+use crate::video::{Video, VramViewers};
 use crate::z80::{Z80, Z80IO};
 
 use egui_winit::winit::{
@@ -15,6 +15,7 @@ use egui_winit::winit::{
 };
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
+use savefile::load_file;
 use std::fs::{metadata, File};
 use std::io::Read;
 use winit_input_helper::WinitInputHelper;
@@ -41,6 +42,15 @@ mod tests;
 mod video;
 mod watchpoints;
 mod z80;
+
+#[derive(Savefile)]
+pub struct System {
+    // Backup CPU used to trip breakpoints/watchpoints without causing side effects
+    pub backup_cpu: Z80,
+    pub cpu: Z80,
+    pub io: IO,
+    pub load_state_clicked: bool,
+}
 
 #[derive(Savefile)]
 pub struct IO {
@@ -85,7 +95,7 @@ impl IO {
                 fnt,
             ),
             i8255: I8255::new(),
-            fdc: FDC::new(floppy_data.try_into().ok().unwrap(), true),
+            fdc: FDC::new(floppy_data, false),
             cart: Cart::new(cart_rom),
             rtc: RTC::new(),
             sub_cmd: 0,
@@ -160,7 +170,7 @@ impl Z80IO for IO {
                 0x0ff8 => self.fdc.status(side_effects),
                 0x0ffa => self.fdc.get_sector(),
                 0x0ffb => self.fdc.data,
-                0x1900 => {
+                0x1900..=0x19ff => {
                     if self.sub_obf != 0 {
                         let ret = self.sub_vals[self.key_i];
                         if !side_effects {
@@ -238,7 +248,7 @@ impl Z80IO for IO {
                     */
                     self.i8255.port_c
                 }
-                0x1b00 => {
+                0x1b00..=0x1bff => {
                     // ay sound
                     // println!("Read from port 1b00");
                     0
@@ -286,7 +296,7 @@ impl Z80IO for IO {
                 0x1400..=0x17ff => self.video.pcg_w((addr & 0x300) >> 8, value),
                 0x1800 => self.video.hd6845s.addr = value & 0x1f,
                 0x1801 => self.video.hd6845s.set_addr(value),
-                0x1900 => {
+                0x1900..=0x19ff => {
                     let mut data = value;
                     if self.sub_cmd == 0xe4 {
                         self.key_irq_vector = value;
@@ -385,11 +395,11 @@ impl Z80IO for IO {
                         self.io_bank = true;
                     }
                 }
-                0x1b00 => {
+                0x1b00..=0x1bff => {
                     // ay sound
                     // println!("Write from port 1b00 val {:x}", value);
                 }
-                0x1c00 => {
+                0x1c00..=0x1cff => {
                     // ay sound
                     // println!("Write from port 1c00 val {:x}", value);
                 }
@@ -424,22 +434,26 @@ fn get_new_io() -> IO {
     let ipl = get_file_as_byte_vec(&String::from("res/ipl.x1"));
     // let ank = get_file_as_byte_vec(&String::from("res/ank.fnt")); // 8x16
     let fnt = get_file_as_byte_vec(&String::from("res/fnt0808.x1")); // 8x8
-                                                                     // let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
-    let cart_rom = vec![0];
-    let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
-    // let floppy_data = vec![0; 327680];
+    let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
+    // let cart_rom = vec![0];
+    // let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
+    let floppy_data = vec![0];
 
     IO::new(ipl, fnt, floppy_data, cart_rom)
 }
 
 fn main() -> Result<(), Error> {
-    let mut io = get_new_io();
+    let mut system = System {
+        backup_cpu: Z80::new(false),
+        cpu: Z80::new(true),
+        io: get_new_io(),
+        load_state_clicked: false,
+    };
+    system.cpu.reset();
+    system.backup_cpu.reset();
 
-    // Backup CPU used to trip breakpoints/watchpoints without causing side effects
-    let mut cpu = Z80::new(true);
-    let mut backup_cpu = Z80::new(false);
-    cpu.reset();
-    backup_cpu.reset();
+    // Setup vram viewers
+    let mut vram_viewers = VramViewers::new(&system.io.video);
 
     env_logger::init();
     let event_loop = EventLoop::new();
@@ -496,30 +510,34 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
-            if io.pause_pressed {
-                io.pause_pressed = false;
-                io.paused = !io.paused;
+            if system.load_state_clicked {
+                system = load_file("x1.sav", 0).unwrap();
             }
 
-            if io.step_pressed {
-                io.step_pressed = false;
-                if !io.paused {
-                    io.paused = true;
+            if system.io.pause_pressed {
+                system.io.pause_pressed = false;
+                system.io.paused = !system.io.paused;
+            }
+
+            if system.io.step_pressed {
+                system.io.step_pressed = false;
+                if !system.io.paused {
+                    system.io.paused = true;
                 } else {
-                    backup_cpu.step(&mut io);
-                    let added = cpu.step(&mut io);
+                    system.backup_cpu.step(&mut system.io);
+                    let added = system.cpu.step(&mut system.io);
                     cyc += added;
-                    io.video.cycles += added;
+                    system.io.video.cycles += added;
                 }
             }
 
-            if io.reset_pressed {
-                io.reset_pressed = false;
-                backup_cpu = Z80::new(false);
-                cpu = Z80::new(true);
-                backup_cpu.reset();
-                cpu.reset();
-                io = get_new_io();
+            if system.io.reset_pressed {
+                system.io.reset_pressed = false;
+                system.backup_cpu = Z80::new(false);
+                system.cpu = Z80::new(true);
+                system.backup_cpu.reset();
+                system.cpu.reset();
+                system.io = get_new_io();
             }
 
             // Update the scale factor
@@ -537,45 +555,46 @@ fn main() -> Result<(), Error> {
                 framework.resize(size.width, size.height);
             }
 
-            while !io.paused && cyc < CPU_CLOCK / 60 {
-                backup_cpu.step(&mut io);
+            while !system.io.paused && cyc < CPU_CLOCK / 60 {
+                system.backup_cpu.step(&mut system.io);
 
-                io.paused = watchpoints.check(io.last_addr, io.last_is_read, io.last_is_mem);
-                if io.paused {
-                    backup_cpu = cpu.clone();
-                    backup_cpu.side_effects = false;
+                system.io.paused = watchpoints.check(
+                    system.io.last_addr, system.io.last_is_read, system.io.last_is_mem);
+                if system.io.paused {
+                    system.backup_cpu = system.cpu.clone();
+                    system.backup_cpu.side_effects = false;
                     break;
                 }
 
-                let added = cpu.step(&mut io);
+                let added = system.cpu.step(&mut system.io);
                 cyc += added;
-                io.video.cycles += added;
+                system.io.video.cycles += added;
 
-                io.paused = breakpoints.check(backup_cpu.pc);
-                if io.paused {
+                system.io.paused = breakpoints.check(system.backup_cpu.pc);
+                if system.io.paused {
                     break;
                 }
             }
 
             if cyc >= CPU_CLOCK / 60 {
                 cyc -= CPU_CLOCK / 60;
-                io.video.cycles -= CPU_CLOCK / 60;
+                system.io.video.cycles -= CPU_CLOCK / 60;
 
-                io.keyboard.set_btns_pressed(&input);
-                if io.key_irq_vector != 0 {
-                    if io.keyboard.key_pressed != io.last_key_press {
-                        io.sub_vals[1] = io.keyboard.check_press() as u8;
-                        io.sub_vals[0] = io.keyboard.check_shift();
-                        io.sub_cmd_len = 2;
-                        cpu.assert_irq(io.key_irq_vector);
-                        io.sub_cmd = 0xe6;
-                        io.sub_obf = 0x00;
+                system.io.keyboard.set_btns_pressed(&input);
+                if system.io.key_irq_vector != 0 {
+                    if system.io.keyboard.key_pressed != system.io.last_key_press {
+                        system.io.sub_vals[1] = system.io.keyboard.check_press() as u8;
+                        system.io.sub_vals[0] = system.io.keyboard.check_shift();
+                        system.io.sub_cmd_len = 2;
+                        system.cpu.assert_irq(system.io.key_irq_vector);
+                        system.io.sub_cmd = 0xe6;
+                        system.io.sub_obf = 0x00;
                     }
-                    io.last_key_press = io.keyboard.key_pressed;
+                    system.io.last_key_press = system.io.keyboard.key_pressed;
                 }
             }
 
-            io.video.display(pixels.frame_mut());
+            system.io.video.display(pixels.frame_mut(), &mut vram_viewers);
             window.request_redraw();
         }
 
@@ -586,14 +605,14 @@ fn main() -> Result<(), Error> {
             }
             Event::RedrawRequested(_) => {
                 // Prepare egui
-                disassembler.prepare(&mut cpu, &mut io);
+                disassembler.prepare(&mut system.cpu, &mut system.io);
                 framework.prepare(
                     &window,
-                    &mut cpu,
-                    &mut io,
+                    &mut system,
                     &disassembler,
                     &mut breakpoints,
                     &mut watchpoints,
+                    &mut vram_viewers,
                 );
 
                 // Render everything together

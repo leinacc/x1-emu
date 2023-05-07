@@ -75,7 +75,7 @@ pub struct Video {
     bitmapdata0: [u8; 0xc000],
     bitmapdata1: [u8; 0xc000],
     pub hd6845s: HD6845S,
-    palettes: [u32; 16], // rgba
+    pub palettes: [u32; 16], // rgba
     red_pal: u8,
     green_pal: u8,
     blue_pal: u8,
@@ -83,19 +83,97 @@ pub struct Video {
     pub avram: [u8; 0x800],
     pub tvram: [u8; 0x800],
     // ank: Vec<u8>,
-    fnt: [u8; 0x1800],
-    pcg_ram: [u8; 0x1800],
+    pub fnt: [u8; 0x1800],
+    pub pcg_ram: [u8; 0x1800],
     pub cycles: u32,
     frame_cnt: u8,
 
     palettes_open: bool,
-    palettes_canvas: [u8; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
     bitmap0_open: bool,
-    bitmap0_canvas: [u8; (SCREEN_WIDTH * SCREEN_HEIGHT * 4) as usize],
     pcgrom_open: bool,
-    pcgrom_canvas: [u8; 128 * 128 * 4],
     pcgram_open: bool,
+    
+}
+
+pub struct VramViewers {
+    palettes_canvas: [u8; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
+    bitmap0_canvas: [u8; (SCREEN_WIDTH * SCREEN_HEIGHT * 4) as usize],
+    pcgrom_canvas: [u8; 128 * 128 * 4],
     pcgram_canvas: [u8; 128 * 128 * 4],
+}
+
+impl VramViewers {
+    pub fn new(video: &Video) -> Self {
+        let mut pcgrom_canvas = [0; 128 * 128 * 4];
+        for tilerow in 0..16 {
+            for tilecol in 0..16 {
+                let tile_idx = tilerow * 16 + tilecol;
+                draw_pcg_tile(
+                    video.palettes,
+                    &mut pcgrom_canvas,
+                    128,
+                    video.fnt,
+                    tile_idx,
+                    tilerow,
+                    tilecol,
+                    7,
+                    false,
+                    false,
+                    false,
+                    false,
+                );
+            }
+        }
+
+        Self {
+            palettes_canvas: [0; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
+            bitmap0_canvas: [0; (SCREEN_WIDTH * SCREEN_HEIGHT * 4) as usize],
+            pcgrom_canvas: pcgrom_canvas,
+            pcgram_canvas: [0; 128 * 128 * 4],
+        }
+    }
+
+    pub fn draw_pcgram(&mut self, palettes: [u32; 16], pcg_ram: [u8; 0x1800]) {
+        for tilerow in 0..16 {
+            for tilecol in 0..16 {
+                let tile_idx = tilerow * 16 + tilecol;
+
+                draw_pcg_tile(
+                    palettes,
+                    &mut self.pcgram_canvas,
+                    128,
+                    pcg_ram,
+                    tile_idx,
+                    tilerow,
+                    tilecol,
+                    7,
+                    false,
+                    false,
+                    false,
+                    false,
+                );
+            }
+        }
+    }
+
+    pub fn draw_palettes(&mut self, palettes: [u32; 16]) {
+        for i in 0..16 {
+            let pal = palettes[i];
+            let gridx = i % 8;
+            let gridy = i / 8;
+            for y in 0..PAL_SQUARE_PX {
+                for x in 0..PAL_SQUARE_PX {
+                    draw_pixel(
+                        &mut self.palettes_canvas,
+                        (8 * PAL_SQUARE_PX) as u32,
+                        (gridx * PAL_SQUARE_PX + x) as i16,
+                        (gridy * PAL_SQUARE_PX + y) as i16,
+                        pal,
+                    );
+                }
+            }
+        }
+    }
 }
 
 fn draw_pixel(canvas: &mut [u8], canvas_width: u32, plotcol: i16, plotrow: i16, color: u32) {
@@ -106,7 +184,7 @@ fn draw_pixel(canvas: &mut [u8], canvas_width: u32, plotcol: i16, plotrow: i16, 
     canvas[offs + 3] = ((color >> 0) & 0xff) as u8; // a
 }
 
-fn draw_pcg_tile(
+pub fn draw_pcg_tile(
     palettes: [u32; 16],
     canvas: &mut [u8],
     canvas_width: u32,
@@ -180,29 +258,6 @@ impl Video {
             }
         }
 
-        let palettes: [u32; 16] = [0xffffffff; 16];
-
-        let mut pcgrom_canvas = [0; 128 * 128 * 4];
-        for tilerow in 0..16 {
-            for tilecol in 0..16 {
-                let tile_idx = tilerow * 16 + tilecol;
-                draw_pcg_tile(
-                    palettes,
-                    &mut pcgrom_canvas,
-                    128,
-                    new_fnt,
-                    tile_idx,
-                    tilerow,
-                    tilecol,
-                    7,
-                    false,
-                    false,
-                    false,
-                    false,
-                );
-            }
-        }
-
         let mut video = Self {
             bitmapbank2: false,
             bitmapdata0: [0; 0xc000],
@@ -222,13 +277,9 @@ impl Video {
             frame_cnt: 0,
 
             palettes_open: false,
-            palettes_canvas: [0; 8 * PAL_SQUARE_PX * 2 * PAL_SQUARE_PX * 4],
             bitmap0_open: false,
-            bitmap0_canvas: [0; (SCREEN_WIDTH * SCREEN_HEIGHT * 4) as usize],
             pcgrom_open: false,
-            pcgrom_canvas: pcgrom_canvas,
             pcgram_open: false,
-            pcgram_canvas: [0; 128 * 128 * 4],
         };
 
         for i in 0..16 {
@@ -243,25 +294,8 @@ impl Video {
                 pal += 0x0000ff00u32
             };
             video.palettes[i] = pal;
-            let gridx = i % 8;
-            let gridy = i / 8;
-            video.draw_pal_square(gridx, gridy, pal);
         }
         video
-    }
-
-    fn draw_pal_square(&mut self, gridx: usize, gridy: usize, color: u32) {
-        for y in 0..PAL_SQUARE_PX {
-            for x in 0..PAL_SQUARE_PX {
-                draw_pixel(
-                    &mut self.palettes_canvas,
-                    (8 * PAL_SQUARE_PX) as u32,
-                    (gridx * PAL_SQUARE_PX + x) as i16,
-                    (gridy * PAL_SQUARE_PX + y) as i16,
-                    color,
-                );
-            }
-        }
     }
 
     fn priority_mixer_pri(&self, color: u8) -> u8 {
@@ -280,7 +314,7 @@ impl Video {
         pri_mask_calc
     }
 
-    fn draw_gfxbitmap(&mut self, canvas: &mut [u8], xsize: u8, ysize: u8, pri: u8) {
+    fn draw_gfxbitmap(&mut self, canvas: &mut [u8], xsize: u8, ysize: u8, pri: u8, vram_viewers: &mut VramViewers) {
         // bitmap
         for row in 0..ysize {
             for col in 0..xsize {
@@ -325,7 +359,7 @@ impl Video {
                             self.palettes[color as usize | 8],
                         );
                         draw_pixel(
-                            &mut self.bitmap0_canvas,
+                            &mut vram_viewers.bitmap0_canvas,
                             SCREEN_WIDTH,
                             plotcol,
                             plotrow,
@@ -368,37 +402,15 @@ impl Video {
                 );
             }
         }
-
-        // pcgram ui
-        for tilerow in 0..16 {
-            for tilecol in 0..16 {
-                let tile_idx = tilerow * 16 + tilecol;
-
-                draw_pcg_tile(
-                    self.palettes,
-                    &mut self.pcgram_canvas,
-                    128,
-                    self.pcg_ram,
-                    tile_idx,
-                    tilerow,
-                    tilecol,
-                    7,
-                    false,
-                    false,
-                    false,
-                    false,
-                );
-            }
-        }
     }
 
-    pub fn display(&mut self, canvas: &mut [u8]) {
+    pub fn display(&mut self, canvas: &mut [u8], vram_viewers: &mut VramViewers) {
         let xsize = self.hd6845s.horiz_disp;
         let ysize = self.hd6845s.vert_disp;
 
-        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri);
+        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri, vram_viewers);
         self.draw_fgtilemap(canvas, xsize, ysize);
-        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri ^ 0xff);
+        self.draw_gfxbitmap(canvas, xsize, ysize, self.pri ^ 0xff, vram_viewers);
 
         self.frame_cnt = self.frame_cnt.wrapping_add(1);
     }
@@ -424,7 +436,6 @@ impl Video {
             let b = ((self.blue_pal >> i) & 1) as u32;
             let color = r * 0xff000000 + g * 0x00ff0000 + b * 0x0000ff00 + 0xff;
             self.palettes[8 | i] = color;
-            self.draw_pal_square(i, 1, color);
         }
     }
 
@@ -487,6 +498,7 @@ impl Video {
         ctx: &Context,
         ui: &mut egui::Ui,
         tex_handle: &mut Option<egui::TextureHandle>,
+        vram_viewers: &VramViewers,
     ) {
         ui.menu_button("Video", |ui| {
             if ui.button("Palettes").clicked() {
@@ -514,7 +526,7 @@ impl Video {
                     "palettes",
                     egui::ColorImage::from_rgba_unmultiplied(
                         [8 * PAL_SQUARE_PX, 2 * PAL_SQUARE_PX],
-                        &self.palettes_canvas,
+                        &vram_viewers.palettes_canvas,
                     ),
                     Default::default(),
                 ));
@@ -528,7 +540,7 @@ impl Video {
                     "bitmap0",
                     egui::ColorImage::from_rgba_unmultiplied(
                         [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
-                        &self.bitmap0_canvas,
+                        &vram_viewers.bitmap0_canvas,
                     ),
                     Default::default(),
                 ));
@@ -547,7 +559,7 @@ impl Video {
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
                     "pcgrom",
-                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgrom_canvas),
+                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &vram_viewers.pcgrom_canvas),
                     Default::default(),
                 ));
                 ui.image(texture, texture.size_vec2());
@@ -558,7 +570,7 @@ impl Video {
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
                     "pcgram",
-                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgram_canvas),
+                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &vram_viewers.pcgram_canvas),
                     Default::default(),
                 ));
                 ui.image(texture, texture.size_vec2());

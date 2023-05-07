@@ -9,14 +9,14 @@ pub struct FDC {
     offs_in_sector: u16,
     pub data: u8,
     reading: bool,
-    disk_data: [u8; 327680],
+    disk_data: Vec<u8>,
     pub track: u8,
 
     status_open: bool,
 }
 
 impl FDC {
-    pub fn new(disk_data: [u8; 327680], loaded: bool) -> Self {
+    pub fn new(disk_data: Vec<u8>, loaded: bool) -> Self {
         Self {
             loaded: loaded,
             sector: 0,
