@@ -20,6 +20,10 @@ enum Prefix {
     NONE,
 }
 
+const OP_CALL_COND: u16 = 0x700;
+const OP_CHECK_RET: u16 = 0x701;
+const OP_IM: u16 = 0x702;
+
 enum Cycle {
     AddrIsALow,
     AddrIsBC,
@@ -131,7 +135,7 @@ pub struct Z80<T: Z80IO> {
     write_pin: bool,
     memory_pin: bool,
     io_pin: bool,
-    side_effect: Option<fn(&mut Z80<T>)>,
+    curr_op: u16,
     halt: bool,
 
     low_byte: u8,
@@ -485,96 +489,7 @@ fn get_cb_op<T: Z80IO>(cpu: &mut Z80<T>) {
     if cpu.prefix != Prefix::NONE {
         cpu.microcodes.insert(0, Cycle::Nop);
     }
-    cpu.side_effect = match op {
-        0x00..=0x05 | 0x07 => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.rlc(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x08..=0x0d | 0x0f => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.rrc(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x10..=0x15 | 0x17 => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.rl(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x18..=0x1d | 0x1f => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.rr(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x20..=0x25 | 0x27 => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.sla(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x28..=0x2d | 0x2f => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.sra(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x30..=0x35 | 0x37 => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.sll(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x38..=0x3d | 0x3f => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.srl(cpu.prefixed_group_reg_r(cpu.group_1)),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0x40..=0x7f => Some(bit),
-        0x80..=0x85
-        | 0x87..=0x8d
-        | 0x8f..=0x95
-        | 0x97..=0x9d
-        | 0x9f..=0xa5
-        | 0xa7..=0xad
-        | 0xaf..=0xb5
-        | 0xb7..=0xbd
-        | 0xbf => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.prefixed_group_reg_r(cpu.group_1) & mask(cpu.group_8),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        0xc0..=0xc5
-        | 0xc7..=0xcd
-        | 0xcf..=0xd5
-        | 0xd7..=0xdd
-        | 0xdf..=0xe5
-        | 0xe7..=0xed
-        | 0xef..=0xf5
-        | 0xf7..=0xfd
-        | 0xff => Some(|cpu| {
-            let val = match cpu.prefix {
-                Prefix::NONE => cpu.prefixed_group_reg_r(cpu.group_1) | flag(cpu.group_8),
-                _ => cpu.low_byte,
-            };
-            cpu.group_reg_w(cpu.group_1, val);
-        }),
-        _ => None,
-    };
+    cpu.curr_op = ((cpu.curr_op & 0xff00)+0x100)|(op as u16);
     cpu.set_q = true;
     cpu.is_ext = true;
 }
@@ -779,61 +694,7 @@ fn get_ed_op<T: Z80IO>(cpu: &mut Z80<T>) {
         cpu.microcodes.pop();
         cpu.microcodes.push(Cycle::CheckRep);
     }
-    cpu.side_effect = match op {
-        0x40 | 0x48 | 0x50 | 0x58 | 0x60 | 0x68 | 0x70 | 0x78 => Some(in_reg_bc),
-        0x41 | 0x49 | 0x51 | 0x59 | 0x61 | 0x69 | 0x79 => {
-            Some(|cpu| cpu.wz = cpu.bc().wrapping_add(1))
-        }
-        0x42 | 0x52 | 0x62 | 0x72 => Some(sbc_hl_rp),
-        0x43 | 0x53 | 0x63 | 0x73 => {
-            Some(|cpu| cpu.wz = word(cpu.high_byte, cpu.low_byte).wrapping_add(1))
-        }
-        0x44 | 0x4c | 0x54 | 0x5c | 0x64 | 0x6c | 0x74 | 0x7c => Some(|cpu| {
-            let val = cpu.a;
-            cpu.a = 0;
-            cpu.sub_a_r(val);
-        }),
-        0x45 | 0x55 | 0x5d | 0x65 | 0x6d | 0x75 | 0x7d => Some(|cpu| {
-            cpu.pc = word(cpu.high_byte, cpu.low_byte);
-            cpu.wz = cpu.pc;
-            cpu.iff1 = cpu.iff2;
-        }),
-        0x46 | 0x4e | 0x66 | 0x6e => Some(|cpu| cpu.im = 0),
-        0x47 => Some(|cpu| cpu.i = cpu.a),
-        0x4a | 0x5a | 0x6a | 0x7a => Some(adc_hl_rp),
-        0x4b => Some(set_bc),
-        0x4d => Some(|cpu| {
-            cpu.pc = word(cpu.high_byte, cpu.low_byte);
-            cpu.wz = cpu.pc;
-            cpu.iff1 = cpu.iff2;
-            cpu.irq_req = false;
-        }),
-        0x4f => Some(|cpu| cpu.r = cpu.a),
-        0x56 | 0x76 => Some(|cpu| cpu.im = 1),
-        0x57 => Some(|cpu| cpu.ld_a_ir(cpu.i)),
-        0x5b => Some(set_de),
-        0x5e | 0x7e => Some(|cpu| cpu.im = 2),
-        0x5f => Some(|cpu| cpu.ld_a_ir(cpu.r)),
-        0x6b => Some(set_prefixed_hl),
-        0x7b => Some(|cpu| cpu.sp = word(cpu.high_byte, cpu.low_byte)),
-        0xa0 => Some(|cpu| cpu.ldid(true)),
-        0xa1 => Some(|cpu| cpu.cpid(true)),
-        0xa2 => Some(|cpu| cpu.inid(true)),
-        0xa3 => Some(|cpu| cpu.outid(true)),
-        0xa8 => Some(|cpu| cpu.ldid(false)),
-        0xa9 => Some(|cpu| cpu.cpid(false)),
-        0xaa => Some(|cpu| cpu.inid(false)),
-        0xab => Some(|cpu| cpu.outid(false)),
-        0xb0 => Some(|cpu| cpu.ldidr(true)),
-        0xb1 => Some(|cpu| cpu.cpidr(true)),
-        0xb2 => Some(|cpu| cpu.inidr(true)),
-        0xb3 => Some(|cpu| cpu.otidr(true)),
-        0xb8 => Some(|cpu| cpu.ldidr(false)),
-        0xb9 => Some(|cpu| cpu.cpidr(false)),
-        0xba => Some(|cpu| cpu.inidr(false)),
-        0xbb => Some(|cpu| cpu.otidr(false)),
-        _ => None,
-    };
+    cpu.curr_op = 0x400|(op as u16);
     if op == 0x57 || op == 0x5f {
         cpu.p = 1;
     }
@@ -1145,7 +1006,7 @@ impl<T: Z80IO> Z80<T> {
             write_pin: false,
             memory_pin: false,
             io_pin: false,
-            side_effect: None,
+            curr_op: 0,
             halt: false,
 
             low_byte: 0,
@@ -1960,6 +1821,7 @@ impl<T: Z80IO> Z80<T> {
                 self.init_pc = self.pc;
                 self.is_ext = false;
                 self.prefix = Prefix::NONE;
+                self.curr_op = 0;
             }
             FDEPhase::ReadMem => {
                 self.phase = FDEPhase::Fetch;
@@ -2305,158 +2167,7 @@ impl<T: Z80IO> Z80<T> {
                         _ => (),
                     }
                 }
-                self.side_effect = match op {
-                    0x01 | 0xc1 => Some(set_bc),
-                    0x02 => Some(|cpu| {
-                        cpu.wz = ((cpu.a as u16) << 8) | (cpu.c.wrapping_add(1) as u16);
-                    }),
-                    0x03 => Some(|cpu| inc_word(&mut cpu.b, &mut cpu.c)),
-                    0x04 | 0x0c | 0x14 | 0x1c | 0x24 | 0x2c | 0x3c => Some(|cpu| {
-                        let val = cpu.inc_reg(cpu.prefixed_group_reg_r(cpu.group_8));
-                        cpu.prefixed_group_reg_w(cpu.group_8, val);
-                    }),
-                    0x05 | 0x0d | 0x15 | 0x1d | 0x25 | 0x2d | 0x3d => Some(|cpu| {
-                        let val = cpu.dec_reg(cpu.prefixed_group_reg_r(cpu.group_8));
-                        cpu.prefixed_group_reg_w(cpu.group_8, val);
-                    }),
-                    0x06 | 0x0e | 0x16 | 0x1e | 0x26 | 0x2e | 0x3e => {
-                        Some(|cpu| cpu.prefixed_group_reg_w(cpu.group_8, cpu.data_bus.unwrap()))
-                    }
-                    0x07 => Some(rlca),
-                    0x08 => Some(ex_af_af_),
-                    0x09 => Some(|cpu| {
-                        cpu.wz = cpu.prefixed_hl().wrapping_add(1);
-                        add_prefixed_hl_rp(cpu, cpu.bc());
-                    }),
-                    0x0a => Some(|cpu| {
-                        cpu.a = cpu.data_bus.unwrap();
-                        cpu.wz = cpu.bc().wrapping_add(1);
-                    }),
-                    0x0b => Some(|cpu| dec_word(&mut cpu.b, &mut cpu.c)),
-                    0x0f => Some(rrca),
-                    0x11 | 0xd1 => Some(set_de),
-                    0x12 => Some(|cpu| {
-                        cpu.wz = ((cpu.a as u16) << 8) | (cpu.e.wrapping_add(1) as u16);
-                    }),
-                    0x13 => Some(|cpu| inc_word(&mut cpu.d, &mut cpu.e)),
-                    0x17 => Some(rla),
-                    0x19 => Some(|cpu| {
-                        cpu.wz = cpu.prefixed_hl().wrapping_add(1);
-                        add_prefixed_hl_rp(cpu, cpu.de());
-                    }),
-                    0x1a => Some(|cpu| {
-                        cpu.a = cpu.data_bus.unwrap();
-                        cpu.wz = cpu.de().wrapping_add(1);
-                    }),
-                    0x1b => Some(|cpu| dec_word(&mut cpu.d, &mut cpu.e)),
-                    0x1f => Some(rra),
-                    0x21 | 0x2a | 0xe1 => Some(set_prefixed_hl),
-                    0x22 => Some(|cpu| {
-                        cpu.wz = word(cpu.high_byte, cpu.low_byte).wrapping_add(1);
-                    }),
-                    0x23 => Some(|cpu| match cpu.prefix {
-                        Prefix::DD => cpu.ix = cpu.ix.wrapping_add(1),
-                        Prefix::FD => cpu.iy = cpu.iy.wrapping_add(1),
-                        Prefix::NONE => inc_word(&mut cpu.h, &mut cpu.l),
-                    }),
-                    0x27 => Some(daa),
-                    0x29 => Some(|cpu| {
-                        let rp = cpu.prefixed_hl();
-                        cpu.wz = rp.wrapping_add(1);
-                        add_prefixed_hl_rp(cpu, rp);
-                    }),
-                    0x2b => Some(|cpu| match cpu.prefix {
-                        Prefix::DD => cpu.ix = cpu.ix.wrapping_sub(1),
-                        Prefix::FD => cpu.iy = cpu.iy.wrapping_sub(1),
-                        Prefix::NONE => dec_word(&mut cpu.h, &mut cpu.l),
-                    }),
-                    0x2f => Some(cpl),
-                    0x31 => Some(|cpu| cpu.sp = word(cpu.high_byte, cpu.low_byte)),
-                    0x32 => Some(|cpu| {
-                        cpu.wz = ((cpu.a as u16) << 8) | (cpu.low_byte.wrapping_add(1) as u16);
-                    }),
-                    0x33 => Some(|cpu| cpu.sp = cpu.sp.wrapping_add(1)),
-                    0x37 => Some(scf),
-                    0x39 => Some(|cpu| {
-                        cpu.wz = cpu.prefixed_hl().wrapping_add(1);
-                        add_prefixed_hl_rp(cpu, cpu.sp);
-                    }),
-                    0x3a => Some(|cpu| {
-                        cpu.a = cpu.data_bus.unwrap();
-                        cpu.wz = cpu.addr_bus.unwrap().wrapping_add(1);
-                    }),
-                    0x3b => Some(|cpu| cpu.sp = cpu.sp.wrapping_sub(1)),
-                    0x3f => Some(ccf),
-                    0x41..=0x47 => Some(|cpu| cpu.b = cpu.prefixed_group_reg_r(cpu.group_1)),
-                    0x48 | 0x4a..=0x4f => Some(|cpu| cpu.c = cpu.prefixed_group_reg_r(cpu.group_1)),
-                    0x50 | 0x51 | 0x53..=0x57 => {
-                        Some(|cpu| cpu.d = cpu.prefixed_group_reg_r(cpu.group_1))
-                    }
-                    0x58..=0x5a | 0x5c..=0x5f => {
-                        Some(|cpu| cpu.e = cpu.prefixed_group_reg_r(cpu.group_1))
-                    }
-                    0x60..=0x63 | 0x65 | 0x67 => {
-                        Some(|cpu| cpu.set_prefixed_h(cpu.prefixed_group_reg_r(cpu.group_1)))
-                    }
-                    0x66 => Some(|cpu| cpu.h = cpu.prefixed_group_reg_r(cpu.group_1)),
-                    0x68..=0x6c | 0x6f => {
-                        Some(|cpu| cpu.set_prefixed_l(cpu.prefixed_group_reg_r(cpu.group_1)))
-                    }
-                    0x6e => Some(|cpu| cpu.l = cpu.prefixed_group_reg_r(cpu.group_1)),
-                    0x76 => Some(|cpu| cpu.halt = true),
-                    0x78..=0x7d => Some(|cpu| cpu.a = cpu.prefixed_group_reg_r(cpu.group_1)),
-                    0x7e => Some(|cpu| cpu.a = cpu.data_bus.unwrap()),
-                    0x80..=0x87 => Some(|cpu| cpu.add_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0x88..=0x8f => Some(|cpu| cpu.adc_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0x90..=0x97 => Some(|cpu| cpu.sub_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0x98..=0x9f => Some(|cpu| cpu.sbc_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0xa0..=0xa7 => Some(|cpu| cpu.and_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0xa8..=0xaf => Some(|cpu| cpu.xor_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0xb0..=0xb7 => Some(|cpu| cpu.or_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
-                    0xb8..=0xbf => Some(|cpu| {
-                        cpu.cp_a_r(cpu.prefixed_group_reg_r(cpu.group_1));
-                    }),
-                    0xc2 | 0xca | 0xd2 | 0xda | 0xe2 | 0xea | 0xf2 | 0xfa => Some(jp_cond),
-                    0xc3 | 0xc9 | 0xcd => Some(|cpu| {
-                        cpu.pc = word(cpu.high_byte, cpu.low_byte);
-                        cpu.wz = cpu.pc;
-                    }),
-                    0xc6 => Some(|cpu| cpu.add_a_r(cpu.low_byte)),
-                    0xc7 | 0xcf | 0xd7 | 0xdf | 0xe7 | 0xef | 0xf7 | 0xff => Some(rst),
-                    0xcb => Some(get_cb_op),
-                    0xce => Some(|cpu| cpu.adc_a_r(cpu.low_byte)),
-                    0xd3 => Some(|cpu| cpu.wz = word(cpu.a, cpu.low_byte.wrapping_add(1))),
-                    0xd6 => Some(|cpu| cpu.sub_a_r(cpu.low_byte)),
-                    0xd9 => Some(exx),
-                    0xdb => Some(|cpu| {
-                        cpu.wz = word(cpu.a, cpu.low_byte).wrapping_add(1);
-                        cpu.a = cpu.data_bus.unwrap()
-                    }),
-                    0xdd => Some(|cpu| {
-                        cpu.phase = FDEPhase::Fetch;
-                        cpu.prefix = Prefix::DD;
-                    }),
-                    0xde => Some(|cpu| cpu.sbc_a_r(cpu.low_byte)),
-                    0xe3 => Some(prefixed_hl_is_word),
-                    0xe6 => Some(|cpu| cpu.and_a_r(cpu.low_byte)),
-                    0xe9 => Some(|cpu| cpu.pc = cpu.prefixed_hl()),
-                    0xeb => Some(ex_de_hl),
-                    0xed => Some(get_ed_op),
-                    0xee => Some(|cpu| cpu.xor_a_r(cpu.low_byte)),
-                    0xf1 => Some(set_af),
-                    0xf3 => Some(di),
-                    0xf6 => Some(|cpu| cpu.or_a_r(cpu.low_byte)),
-                    0xf9 => Some(|cpu| cpu.sp = cpu.prefixed_hl()),
-                    0xfb => Some(ei),
-                    0xfd => Some(|cpu| {
-                        cpu.phase = FDEPhase::Fetch;
-                        cpu.prefix = Prefix::FD;
-                    }),
-                    0xfe => Some(|cpu| {
-                        cpu.cp_a_r(cpu.low_byte);
-                    }),
-                    _ => None,
-                };
+                self.curr_op = (self.curr_op&0xff00)|(op as u16);
                 self.set_q = match op {
                     0x04
                     | 0x05
@@ -2581,7 +2292,7 @@ impl<T: Z80IO> Z80<T> {
                             self.microcodes.push(Cycle::PushStack);
                             self.microcodes.push(Cycle::WritePCLow);
                             self.microcodes.push(Cycle::Unwrite);
-                            self.side_effect = Some(|cpu| cpu.pc = cpu.wz);
+                            self.curr_op = OP_CALL_COND;
                         }
                     }
                     Cycle::CheckIrqData => self.data_bus = Some(self.curr_irq_data),
@@ -2619,10 +2330,7 @@ impl<T: Z80IO> Z80<T> {
                             self.microcodes.push(Cycle::PopStackHigh);
                             self.microcodes.push(Cycle::ReadMem);
                             self.microcodes.push(Cycle::PeekHigh);
-                            self.side_effect = Some(|cpu| {
-                                cpu.pc = word(cpu.high_byte, cpu.low_byte);
-                                cpu.wz = cpu.pc;
-                            });
+                            self.curr_op = OP_CHECK_RET;
                         }
                     }
                     Cycle::DecLow => {
@@ -2874,10 +2582,7 @@ impl<T: Z80IO> Z80<T> {
                     self.ei = 0;
                     self.phase = FDEPhase::Init;
                     let prev_prefix = self.prefix;
-                    match self.side_effect {
-                        None => {}
-                        Some(func) => func(self),
-                    }
+                    self.exec_side_effect();
                     if prev_prefix == self.prefix {
                         self.q = if self.set_q { 1 } else { 0 };
 
@@ -2945,20 +2650,338 @@ impl<T: Z80IO> Z80<T> {
                                     ],
                                     _ => panic!("Invalid im for irq"),
                                 };
-                                self.side_effect = match self.im {
-                                    0 => Some(|cpu| {
-                                        cpu.is_im0 = true;
-                                        cpu.phase = FDEPhase::Execute;
-                                    }),
-                                    1 => Some(|cpu| cpu.pc = 0x38),
-                                    2 => Some(|cpu| cpu.pc = word(cpu.high_byte, cpu.low_byte)),
-                                    _ => panic!("Invalid im for irq"),
-                                };
+                                self.curr_op = OP_IM;
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    fn exec_side_effect(&mut self) {
+        let f: Option<fn (&mut Z80<T>)> = match self.curr_op & 0xff00 {
+            0x000|0x200|0x500 => match self.curr_op & 0x00ff {
+                0x01 | 0xc1 => Some(set_bc),
+                0x02 => Some(|cpu| {
+                    cpu.wz = ((cpu.a as u16) << 8) | (cpu.c.wrapping_add(1) as u16);
+                }),
+                0x03 => Some(|cpu| inc_word(&mut cpu.b, &mut cpu.c)),
+                0x04 | 0x0c | 0x14 | 0x1c | 0x24 | 0x2c | 0x3c => Some(|cpu| {
+                    let val = cpu.inc_reg(cpu.prefixed_group_reg_r(cpu.group_8));
+                    cpu.prefixed_group_reg_w(cpu.group_8, val);
+                }),
+                0x05 | 0x0d | 0x15 | 0x1d | 0x25 | 0x2d | 0x3d => Some(|cpu| {
+                    let val = cpu.dec_reg(cpu.prefixed_group_reg_r(cpu.group_8));
+                    cpu.prefixed_group_reg_w(cpu.group_8, val);
+                }),
+                0x06 | 0x0e | 0x16 | 0x1e | 0x26 | 0x2e | 0x3e => {
+                    Some(|cpu| cpu.prefixed_group_reg_w(cpu.group_8, cpu.data_bus.unwrap()))
+                }
+                0x07 => Some(rlca),
+                0x08 => Some(ex_af_af_),
+                0x09 => Some(|cpu| {
+                    cpu.wz = cpu.prefixed_hl().wrapping_add(1);
+                    add_prefixed_hl_rp(cpu, cpu.bc());
+                }),
+                0x0a => Some(|cpu| {
+                    cpu.a = cpu.data_bus.unwrap();
+                    cpu.wz = cpu.bc().wrapping_add(1);
+                }),
+                0x0b => Some(|cpu| dec_word(&mut cpu.b, &mut cpu.c)),
+                0x0f => Some(rrca),
+                0x11 | 0xd1 => Some(set_de),
+                0x12 => Some(|cpu| {
+                    cpu.wz = ((cpu.a as u16) << 8) | (cpu.e.wrapping_add(1) as u16);
+                }),
+                0x13 => Some(|cpu| inc_word(&mut cpu.d, &mut cpu.e)),
+                0x17 => Some(rla),
+                0x19 => Some(|cpu| {
+                    cpu.wz = cpu.prefixed_hl().wrapping_add(1);
+                    add_prefixed_hl_rp(cpu, cpu.de());
+                }),
+                0x1a => Some(|cpu| {
+                    cpu.a = cpu.data_bus.unwrap();
+                    cpu.wz = cpu.de().wrapping_add(1);
+                }),
+                0x1b => Some(|cpu| dec_word(&mut cpu.d, &mut cpu.e)),
+                0x1f => Some(rra),
+                0x21 | 0x2a | 0xe1 => Some(set_prefixed_hl),
+                0x22 => Some(|cpu| {
+                    cpu.wz = word(cpu.high_byte, cpu.low_byte).wrapping_add(1);
+                }),
+                0x23 => Some(|cpu| match cpu.prefix {
+                    Prefix::DD => cpu.ix = cpu.ix.wrapping_add(1),
+                    Prefix::FD => cpu.iy = cpu.iy.wrapping_add(1),
+                    Prefix::NONE => inc_word(&mut cpu.h, &mut cpu.l),
+                }),
+                0x27 => Some(daa),
+                0x29 => Some(|cpu| {
+                    let rp = cpu.prefixed_hl();
+                    cpu.wz = rp.wrapping_add(1);
+                    add_prefixed_hl_rp(cpu, rp);
+                }),
+                0x2b => Some(|cpu| match cpu.prefix {
+                    Prefix::DD => cpu.ix = cpu.ix.wrapping_sub(1),
+                    Prefix::FD => cpu.iy = cpu.iy.wrapping_sub(1),
+                    Prefix::NONE => dec_word(&mut cpu.h, &mut cpu.l),
+                }),
+                0x2f => Some(cpl),
+                0x31 => Some(|cpu| cpu.sp = word(cpu.high_byte, cpu.low_byte)),
+                0x32 => Some(|cpu| {
+                    cpu.wz = ((cpu.a as u16) << 8) | (cpu.low_byte.wrapping_add(1) as u16);
+                }),
+                0x33 => Some(|cpu| cpu.sp = cpu.sp.wrapping_add(1)),
+                0x37 => Some(scf),
+                0x39 => Some(|cpu| {
+                    cpu.wz = cpu.prefixed_hl().wrapping_add(1);
+                    add_prefixed_hl_rp(cpu, cpu.sp);
+                }),
+                0x3a => Some(|cpu| {
+                    cpu.a = cpu.data_bus.unwrap();
+                    cpu.wz = cpu.addr_bus.unwrap().wrapping_add(1);
+                }),
+                0x3b => Some(|cpu| cpu.sp = cpu.sp.wrapping_sub(1)),
+                0x3f => Some(ccf),
+                0x41..=0x47 => Some(|cpu| cpu.b = cpu.prefixed_group_reg_r(cpu.group_1)),
+                0x48 | 0x4a..=0x4f => Some(|cpu| cpu.c = cpu.prefixed_group_reg_r(cpu.group_1)),
+                0x50 | 0x51 | 0x53..=0x57 => {
+                    Some(|cpu| cpu.d = cpu.prefixed_group_reg_r(cpu.group_1))
+                }
+                0x58..=0x5a | 0x5c..=0x5f => {
+                    Some(|cpu| cpu.e = cpu.prefixed_group_reg_r(cpu.group_1))
+                }
+                0x60..=0x63 | 0x65 | 0x67 => {
+                    Some(|cpu| cpu.set_prefixed_h(cpu.prefixed_group_reg_r(cpu.group_1)))
+                }
+                0x66 => Some(|cpu| cpu.h = cpu.prefixed_group_reg_r(cpu.group_1)),
+                0x68..=0x6c | 0x6f => {
+                    Some(|cpu| cpu.set_prefixed_l(cpu.prefixed_group_reg_r(cpu.group_1)))
+                }
+                0x6e => Some(|cpu| cpu.l = cpu.prefixed_group_reg_r(cpu.group_1)),
+                0x76 => Some(|cpu| cpu.halt = true),
+                0x78..=0x7d => Some(|cpu| cpu.a = cpu.prefixed_group_reg_r(cpu.group_1)),
+                0x7e => Some(|cpu| cpu.a = cpu.data_bus.unwrap()),
+                0x80..=0x87 => Some(|cpu| cpu.add_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
+                0x88..=0x8f => Some(|cpu| cpu.adc_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
+                0x90..=0x97 => Some(|cpu| cpu.sub_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
+                0x98..=0x9f => Some(|cpu| cpu.sbc_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
+                0xa0..=0xa7 => Some(|cpu| cpu.and_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
+                0xa8..=0xaf => Some(|cpu| cpu.xor_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
+                0xb0..=0xb7 => Some(|cpu| cpu.or_a_r(cpu.prefixed_group_reg_r(cpu.group_1))),
+                0xb8..=0xbf => Some(|cpu| {
+                    cpu.cp_a_r(cpu.prefixed_group_reg_r(cpu.group_1));
+                }),
+                0xc2 | 0xca | 0xd2 | 0xda | 0xe2 | 0xea | 0xf2 | 0xfa => Some(jp_cond),
+                0xc3 | 0xc9 | 0xcd => Some(|cpu| {
+                    cpu.pc = word(cpu.high_byte, cpu.low_byte);
+                    cpu.wz = cpu.pc;
+                }),
+                0xc6 => Some(|cpu| cpu.add_a_r(cpu.low_byte)),
+                0xc7 | 0xcf | 0xd7 | 0xdf | 0xe7 | 0xef | 0xf7 | 0xff => Some(rst),
+                0xcb => Some(get_cb_op),
+                0xce => Some(|cpu| cpu.adc_a_r(cpu.low_byte)),
+                0xd3 => Some(|cpu| cpu.wz = word(cpu.a, cpu.low_byte.wrapping_add(1))),
+                0xd6 => Some(|cpu| cpu.sub_a_r(cpu.low_byte)),
+                0xd9 => Some(exx),
+                0xdb => Some(|cpu| {
+                    cpu.wz = word(cpu.a, cpu.low_byte).wrapping_add(1);
+                    cpu.a = cpu.data_bus.unwrap()
+                }),
+                0xdd => Some(|cpu| {
+                    cpu.phase = FDEPhase::Fetch;
+                    cpu.prefix = Prefix::DD;
+                    cpu.curr_op = 0x200;
+                }),
+                0xde => Some(|cpu| cpu.sbc_a_r(cpu.low_byte)),
+                0xe3 => Some(prefixed_hl_is_word),
+                0xe6 => Some(|cpu| cpu.and_a_r(cpu.low_byte)),
+                0xe9 => Some(|cpu| cpu.pc = cpu.prefixed_hl()),
+                0xeb => Some(ex_de_hl),
+                0xed => Some(get_ed_op),
+                0xee => Some(|cpu| cpu.xor_a_r(cpu.low_byte)),
+                0xf1 => Some(set_af),
+                0xf3 => Some(di),
+                0xf6 => Some(|cpu| cpu.or_a_r(cpu.low_byte)),
+                0xf9 => Some(|cpu| cpu.sp = cpu.prefixed_hl()),
+                0xfb => Some(ei),
+                0xfd => Some(|cpu| {
+                    cpu.phase = FDEPhase::Fetch;
+                    cpu.prefix = Prefix::FD;
+                    cpu.curr_op = 0x500;
+                }),
+                0xfe => Some(|cpu| {
+                    cpu.cp_a_r(cpu.low_byte);
+                }),
+                _ => None,
+            },
+            0x100|0x300|0x600 => match self.curr_op & 0x00ff {
+                0x00..=0x05 | 0x07 => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.rlc(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x08..=0x0d | 0x0f => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.rrc(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x10..=0x15 | 0x17 => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.rl(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x18..=0x1d | 0x1f => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.rr(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x20..=0x25 | 0x27 => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.sla(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x28..=0x2d | 0x2f => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.sra(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x30..=0x35 | 0x37 => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.sll(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x38..=0x3d | 0x3f => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.srl(cpu.prefixed_group_reg_r(cpu.group_1)),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0x40..=0x7f => Some(bit),
+                0x80..=0x85
+                | 0x87..=0x8d
+                | 0x8f..=0x95
+                | 0x97..=0x9d
+                | 0x9f..=0xa5
+                | 0xa7..=0xad
+                | 0xaf..=0xb5
+                | 0xb7..=0xbd
+                | 0xbf => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.prefixed_group_reg_r(cpu.group_1) & mask(cpu.group_8),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                0xc0..=0xc5
+                | 0xc7..=0xcd
+                | 0xcf..=0xd5
+                | 0xd7..=0xdd
+                | 0xdf..=0xe5
+                | 0xe7..=0xed
+                | 0xef..=0xf5
+                | 0xf7..=0xfd
+                | 0xff => Some(|cpu| {
+                    let val = match cpu.prefix {
+                        Prefix::NONE => cpu.prefixed_group_reg_r(cpu.group_1) | flag(cpu.group_8),
+                        _ => cpu.low_byte,
+                    };
+                    cpu.group_reg_w(cpu.group_1, val);
+                }),
+                _ => None,
+            },
+            0x400 => match self.curr_op & 0x00ff {
+                0x40 | 0x48 | 0x50 | 0x58 | 0x60 | 0x68 | 0x70 | 0x78 => Some(in_reg_bc),
+                0x41 | 0x49 | 0x51 | 0x59 | 0x61 | 0x69 | 0x79 => {
+                    Some(|cpu| cpu.wz = cpu.bc().wrapping_add(1))
+                }
+                0x42 | 0x52 | 0x62 | 0x72 => Some(sbc_hl_rp),
+                0x43 | 0x53 | 0x63 | 0x73 => {
+                    Some(|cpu| cpu.wz = word(cpu.high_byte, cpu.low_byte).wrapping_add(1))
+                }
+                0x44 | 0x4c | 0x54 | 0x5c | 0x64 | 0x6c | 0x74 | 0x7c => Some(|cpu| {
+                    let val = cpu.a;
+                    cpu.a = 0;
+                    cpu.sub_a_r(val);
+                }),
+                0x45 | 0x55 | 0x5d | 0x65 | 0x6d | 0x75 | 0x7d => Some(|cpu| {
+                    cpu.pc = word(cpu.high_byte, cpu.low_byte);
+                    cpu.wz = cpu.pc;
+                    cpu.iff1 = cpu.iff2;
+                }),
+                0x46 | 0x4e | 0x66 | 0x6e => Some(|cpu| cpu.im = 0),
+                0x47 => Some(|cpu| cpu.i = cpu.a),
+                0x4a | 0x5a | 0x6a | 0x7a => Some(adc_hl_rp),
+                0x4b => Some(set_bc),
+                0x4d => Some(|cpu| {
+                    cpu.pc = word(cpu.high_byte, cpu.low_byte);
+                    cpu.wz = cpu.pc;
+                    cpu.iff1 = cpu.iff2;
+                    cpu.irq_req = false;
+                }),
+                0x4f => Some(|cpu| cpu.r = cpu.a),
+                0x56 | 0x76 => Some(|cpu| cpu.im = 1),
+                0x57 => Some(|cpu| cpu.ld_a_ir(cpu.i)),
+                0x5b => Some(set_de),
+                0x5e | 0x7e => Some(|cpu| cpu.im = 2),
+                0x5f => Some(|cpu| cpu.ld_a_ir(cpu.r)),
+                0x6b => Some(set_prefixed_hl),
+                0x7b => Some(|cpu| cpu.sp = word(cpu.high_byte, cpu.low_byte)),
+                0xa0 => Some(|cpu| cpu.ldid(true)),
+                0xa1 => Some(|cpu| cpu.cpid(true)),
+                0xa2 => Some(|cpu| cpu.inid(true)),
+                0xa3 => Some(|cpu| cpu.outid(true)),
+                0xa8 => Some(|cpu| cpu.ldid(false)),
+                0xa9 => Some(|cpu| cpu.cpid(false)),
+                0xaa => Some(|cpu| cpu.inid(false)),
+                0xab => Some(|cpu| cpu.outid(false)),
+                0xb0 => Some(|cpu| cpu.ldidr(true)),
+                0xb1 => Some(|cpu| cpu.cpidr(true)),
+                0xb2 => Some(|cpu| cpu.inidr(true)),
+                0xb3 => Some(|cpu| cpu.otidr(true)),
+                0xb8 => Some(|cpu| cpu.ldidr(false)),
+                0xb9 => Some(|cpu| cpu.cpidr(false)),
+                0xba => Some(|cpu| cpu.inidr(false)),
+                0xbb => Some(|cpu| cpu.otidr(false)),
+                _ => None,
+            },
+            0x700 => match self.curr_op {
+                OP_CALL_COND => Some(|cpu| cpu.pc = cpu.wz),
+                OP_CHECK_RET => Some(|cpu| {
+                    cpu.pc = word(cpu.high_byte, cpu.low_byte);
+                    cpu.wz = cpu.pc;
+                }),
+                OP_IM => match self.im {
+                    0 => Some(|cpu| {
+                        cpu.is_im0 = true;
+                        cpu.phase = FDEPhase::Execute;
+                    }),
+                    1 => Some(|cpu| cpu.pc = 0x38),
+                    2 => Some(|cpu| cpu.pc = word(cpu.high_byte, cpu.low_byte)),
+                    _ => panic!("Invalid im for irq"),
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        match f {
+            None => (),
+            Some(func) => func(self),
         }
     }
 }
