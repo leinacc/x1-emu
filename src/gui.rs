@@ -289,6 +289,9 @@ impl Gui {
                 if ui.button("Step").clicked() {
                     io.step_pressed = true;
                 }
+                if ui.button("Reset").clicked() {
+                    io.reset_pressed = true;
+                }
             });
     }
 }

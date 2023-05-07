@@ -32,7 +32,7 @@ impl FDC {
         }
     }
 
-    pub fn status(&mut self) -> u8 {
+    pub fn status(&mut self, side_effects: bool) -> u8 {
         /*
          * bit 7: clear if 'ready'
          * bit 1: clear if 'seeking to byte'
@@ -41,14 +41,18 @@ impl FDC {
         let mut ret = 2;
         if self.reading {
             if self.offs_in_sector == 0x100 {
-                self.reading = false;
-                self.offs_in_sector = 0;
+                if side_effects {
+                    self.reading = false;
+                    self.offs_in_sector = 0;
+                }
             } else {
                 let sector = (self.sector as usize)
                     + (if self.side1 { 0x10 } else { 0 })
                     + (self.track as usize) * 0x20;
-                self.data = self.disk_data[sector * 0x100 + self.offs_in_sector as usize - 0x100];
-                self.offs_in_sector += 1;
+                if side_effects {
+                    self.data = self.disk_data[sector * 0x100 + self.offs_in_sector as usize - 0x100];
+                    self.offs_in_sector += 1;
+                }
                 ret |= 1;
             }
         }

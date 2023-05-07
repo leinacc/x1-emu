@@ -70,6 +70,49 @@ pub struct IO {
     paused: bool,
     pause_pressed: bool,
     step_pressed: bool,
+    reset_pressed: bool,
+}
+
+impl IO {
+    fn new(ipl: Vec<u8>, fnt: Vec<u8>, floppy_data: Vec<u8>, cart_rom: Vec<u8>) -> Self {
+        let mut io = Self {
+            mem: [0; 0x10000],
+            ipl_loaded: true,
+            ipl: [0; 0x1000],
+            io_bank: false,
+            video: Video::new(
+                // ank,
+                fnt,
+            ),
+            i8255: I8255::new(),
+            fdc: FDC::new(floppy_data.try_into().ok().unwrap(), true),
+            cart: Cart::new(cart_rom),
+            rtc: RTC::new(),
+            sub_cmd: 0,
+            sub_cmd_len: 0,
+            sub_vals: [0; 8],
+            sub_obf: 0,
+            key_i: 0,
+            sub_val_ptr: 0,
+            key_irq_vector: 0,
+    
+            keyboard: Keyboard::new(),
+            last_key_press: 0,
+    
+            last_addr: 0xffff,
+            last_is_mem: true,
+            last_is_read: true,
+            paused: true,
+            pause_pressed: false,
+            step_pressed: false,
+            reset_pressed: false,
+        };
+        for (i, byte) in ipl.iter().enumerate() {
+            io.ipl[i] = *byte;
+        }
+
+        io
+    }
 }
 
 impl Z80IO for IO {
@@ -103,25 +146,26 @@ impl Z80IO for IO {
         self.last_addr = addr;
         self.last_is_read = true;
         self.last_is_mem = false;
-        // todo: pass side_effects to components
-        if !side_effects {
-            return 0;
-        }
 
         if self.io_bank {
             // todo: get extra gfx bitmap ram value
-            self.io_bank = false;
+            if side_effects {
+                self.io_bank = false;
+            }
             0
         } else {
             match addr {
                 0x0000 => 0, // todo: Sofia and Brain Breaker need this?
                 0x0e03 => self.cart.read_byte(),
-                0x0ff8 => self.fdc.status(),
+                0x0ff8 => self.fdc.status(side_effects),
                 0x0ffa => self.fdc.get_sector(),
                 0x0ffb => self.fdc.data,
                 0x1900 => {
                     if self.sub_obf != 0 {
                         let ret = self.sub_vals[self.key_i];
+                        if !side_effects {
+                            return ret;
+                        }
                         self.key_i += 1;
                         if self.key_i >= 2 {
                             self.key_i = 0;
@@ -129,12 +173,15 @@ impl Z80IO for IO {
 
                         ret
                     } else {
+                        let ret = self.sub_vals[self.sub_val_ptr];
+                        if !side_effects {
+                            return ret;
+                        }
                         self.sub_cmd_len -= 1;
                         match self.sub_cmd_len {
                             0 => self.sub_obf = 0x20,
                             _ => self.sub_obf = 0x00,
                         }
-                        let ret = self.sub_vals[self.sub_val_ptr];
                         self.sub_val_ptr += 1;
                         if self.sub_cmd_len <= 0 {
                             self.sub_val_ptr = 0;
@@ -373,7 +420,7 @@ fn get_file_as_byte_vec(filename: &String) -> Vec<u8> {
     buffer
 }
 
-fn main() -> Result<(), Error> {
+fn get_new_io() -> IO {
     let ipl = get_file_as_byte_vec(&String::from("res/ipl.x1"));
     // let ank = get_file_as_byte_vec(&String::from("res/ank.fnt")); // 8x16
     let fnt = get_file_as_byte_vec(&String::from("res/fnt0808.x1")); // 8x8
@@ -382,47 +429,17 @@ fn main() -> Result<(), Error> {
     let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
     // let floppy_data = vec![0; 327680];
 
-    let mut io = IO {
-        mem: [0; 0x10000],
-        ipl_loaded: true,
-        ipl: [0; 0x1000],
-        io_bank: false,
-        video: Video::new(
-            // ank,
-            fnt,
-        ),
-        i8255: I8255::new(),
-        fdc: FDC::new(floppy_data.try_into().ok().unwrap(), true),
-        cart: Cart::new(cart_rom),
-        rtc: RTC::new(),
-        sub_cmd: 0,
-        sub_cmd_len: 0,
-        sub_vals: [0; 8],
-        sub_obf: 0,
-        key_i: 0,
-        sub_val_ptr: 0,
-        key_irq_vector: 0,
+    IO::new(ipl, fnt, floppy_data, cart_rom)
+}
 
-        keyboard: Keyboard::new(),
-        last_key_press: 0,
-
-        last_addr: 0xffff,
-        last_is_mem: true,
-        last_is_read: true,
-        paused: true,
-        pause_pressed: false,
-        step_pressed: false,
-    };
+fn main() -> Result<(), Error> {
+    let mut io = get_new_io();
 
     // Backup CPU used to trip breakpoints/watchpoints without causing side effects
     let mut cpu = Z80::new(true);
     let mut backup_cpu = Z80::new(false);
     cpu.reset();
     backup_cpu.reset();
-
-    for (i, byte) in ipl.iter().enumerate() {
-        io.ipl[i] = *byte;
-    }
 
     env_logger::init();
     let event_loop = EventLoop::new();
@@ -496,6 +513,15 @@ fn main() -> Result<(), Error> {
                 }
             }
 
+            if io.reset_pressed {
+                io.reset_pressed = false;
+                backup_cpu = Z80::new(false);
+                cpu = Z80::new(true);
+                backup_cpu.reset();
+                cpu.reset();
+                io = get_new_io();
+            }
+
             // Update the scale factor
             if let Some(scale_factor) = input.scale_factor() {
                 framework.scale_factor(scale_factor);
@@ -513,19 +539,22 @@ fn main() -> Result<(), Error> {
 
             while !io.paused && cyc < CPU_CLOCK / 60 {
                 backup_cpu.step(&mut io);
-                io.paused = breakpoints.check(backup_cpu.pc);
-                if !io.paused {
-                    io.paused = watchpoints.check(io.last_addr, io.last_is_read, io.last_is_mem);
-                }
+
+                io.paused = watchpoints.check(io.last_addr, io.last_is_read, io.last_is_mem);
                 if io.paused {
                     backup_cpu = cpu.clone();
-                    backup_cpu.side_effects = true;
+                    backup_cpu.side_effects = false;
                     break;
                 }
 
                 let added = cpu.step(&mut io);
                 cyc += added;
                 io.video.cycles += added;
+
+                io.paused = breakpoints.check(backup_cpu.pc);
+                if io.paused {
+                    break;
+                }
             }
 
             if cyc >= CPU_CLOCK / 60 {
