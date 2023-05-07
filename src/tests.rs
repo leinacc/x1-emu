@@ -6516,19 +6516,19 @@ mod tests {
             expected_ports: Vec<(u16, u8, char)>,
         }
         impl Z80IO for IO {
-            fn peek_byte(&mut self, addr: u16) -> u8 {
+            fn peek_byte(&mut self, addr: u16, _: bool) -> u8 {
                 self.memory[addr as usize]
             }
 
-            fn write_byte(&mut self, addr: u16, val: u8) {
+            fn write_byte(&mut self, addr: u16, val: u8, _: bool) {
                 self.memory[addr as usize] = val;
             }
 
-            fn peek_io(&mut self, addr: u16) -> u8 {
+            fn peek_io(&mut self, addr: u16, _: bool) -> u8 {
                 self.io[addr as usize]
             }
 
-            fn write_io(&mut self, addr: u16, val: u8) {
+            fn write_io(&mut self, addr: u16, val: u8, _: bool) {
                 self.ports.push((addr, val, 'w'));
             }
         }
@@ -6543,7 +6543,7 @@ mod tests {
                 ports: vec![],
                 expected_ports: vec![],
             };
-            let mut cpu = Z80::new();
+            let mut cpu = Z80::new(true);
             cpu.pc = initial.pc;
             cpu.sp = initial.sp;
             cpu.a = initial.a;
@@ -6631,7 +6631,7 @@ mod tests {
             assert_eq!(cpu.iff2, ffinal.iff2);
             for i in 0..ffinal.ram.len() {
                 let (addr, val) = ffinal.ram[i];
-                assert_eq!(io.peek_byte(addr), val);
+                assert_eq!(io.peek_byte(addr, true), val);
             }
             match &test.ports {
                 None => (),
@@ -6665,15 +6665,15 @@ mod tests {
             printed_bytes: Vec<u8>,
         }
         impl Z80IO for IO {
-            fn peek_byte(&mut self, addr: u16) -> u8 {
+            fn peek_byte(&mut self, addr: u16, _: bool) -> u8 {
                 self.memory[addr as usize]
             }
 
-            fn write_byte(&mut self, addr: u16, val: u8) {
+            fn write_byte(&mut self, addr: u16, val: u8, _: bool) {
                 self.memory[addr as usize] = val;
             }
 
-            fn peek_io(&mut self, _addr: u16) -> u8 {
+            fn peek_io(&mut self, _addr: u16, _: bool) -> u8 {
                 match self.c {
                     2 => self.printed_bytes.push(self.e),
                     9 => {
@@ -6692,7 +6692,7 @@ mod tests {
                 0xff
             }
 
-            fn write_io(&mut self, _addr: u16, _val: u8) {
+            fn write_io(&mut self, _addr: u16, _val: u8, _: bool) {
                 self.done = true;
             }
         }
@@ -6706,7 +6706,7 @@ mod tests {
             e: 0,
             printed_bytes: vec![],
         };
-        let mut cpu = Z80::new();
+        let mut cpu = Z80::new(true);
         for i in 0..rom.len() {
             io.memory[i + 0x100] = rom[i];
         }

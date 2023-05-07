@@ -25,7 +25,8 @@ use crate::breakpoints::Breakpoints;
 use crate::disassembler::Disassembler;
 use crate::watchpoints::Watchpoints;
 
-#[macro_use] extern crate savefile_derive;
+#[macro_use]
+extern crate savefile_derive;
 
 mod breakpoints;
 mod cart;
@@ -72,7 +73,7 @@ pub struct IO {
 }
 
 impl Z80IO for IO {
-    fn peek_byte(&mut self, addr: u16) -> u8 {
+    fn peek_byte(&mut self, addr: u16, _: bool) -> u8 {
         self.last_addr = addr;
         self.last_is_read = true;
         self.last_is_mem = true;
@@ -87,18 +88,25 @@ impl Z80IO for IO {
         }
     }
 
-    fn write_byte(&mut self, addr: u16, value: u8) {
+    fn write_byte(&mut self, addr: u16, value: u8, side_effects: bool) {
         self.last_addr = addr;
         self.last_is_read = false;
         self.last_is_mem = true;
+        if !side_effects {
+            return;
+        }
 
         self.mem[addr as usize] = value;
     }
 
-    fn peek_io(&mut self, addr: u16) -> u8 {
+    fn peek_io(&mut self, addr: u16, side_effects: bool) -> u8 {
         self.last_addr = addr;
         self.last_is_read = true;
         self.last_is_mem = false;
+        // todo: pass side_effects to components
+        if !side_effects {
+            return 0;
+        }
 
         if self.io_bank {
             // todo: get extra gfx bitmap ram value
@@ -204,10 +212,13 @@ impl Z80IO for IO {
         }
     }
 
-    fn write_io(&mut self, addr: u16, value: u8) {
+    fn write_io(&mut self, addr: u16, value: u8, side_effects: bool) {
         self.last_addr = addr;
         self.last_is_read = false;
         self.last_is_mem = false;
+        if !side_effects {
+            return;
+        }
 
         if self.io_bank {
             // todo: extra gfx bitmap ram
@@ -403,10 +414,11 @@ fn main() -> Result<(), Error> {
         step_pressed: false,
     };
 
-    // todo: backup_cpu using Z80's Clone trait to trip breakpoints/watchpoints
-    // without tripping IO side effects
-    let mut cpu = Z80::new();
+    // Backup CPU used to trip breakpoints/watchpoints without causing side effects
+    let mut cpu = Z80::new(true);
+    let mut backup_cpu = Z80::new(false);
     cpu.reset();
+    backup_cpu.reset();
 
     for (i, byte) in ipl.iter().enumerate() {
         io.ipl[i] = *byte;
@@ -477,6 +489,7 @@ fn main() -> Result<(), Error> {
                 if !io.paused {
                     io.paused = true;
                 } else {
+                    backup_cpu.step(&mut io);
                     let added = cpu.step(&mut io);
                     cyc += added;
                     io.video.cycles += added;
@@ -499,18 +512,20 @@ fn main() -> Result<(), Error> {
             }
 
             while !io.paused && cyc < CPU_CLOCK / 60 {
+                backup_cpu.step(&mut io);
+                io.paused = breakpoints.check(backup_cpu.pc);
+                if !io.paused {
+                    io.paused = watchpoints.check(io.last_addr, io.last_is_read, io.last_is_mem);
+                }
+                if io.paused {
+                    backup_cpu = cpu.clone();
+                    backup_cpu.side_effects = true;
+                    break;
+                }
+
                 let added = cpu.step(&mut io);
                 cyc += added;
                 io.video.cycles += added;
-
-                io.paused = breakpoints.check(cpu.pc);
-                if !io.paused {
-                    io.paused = watchpoints.check(
-                        io.last_addr,
-                        io.last_is_read,
-                        io.last_is_mem,
-                    );
-                }
             }
 
             if cyc >= CPU_CLOCK / 60 {

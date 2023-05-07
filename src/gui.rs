@@ -2,7 +2,7 @@ use crate::breakpoints::Breakpoints;
 use crate::disassembler::Disassembler;
 use crate::watchpoints::Watchpoints;
 use crate::z80::Z80;
-use egui::{ClippedPrimitive, Context, TexturesDelta, TextureHandle};
+use egui::{ClippedPrimitive, Context, TextureHandle, TexturesDelta};
 use egui_memory_editor::MemoryEditor;
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use egui_winit::winit::event_loop::EventLoopWindowTarget;
@@ -106,8 +106,15 @@ impl Framework {
             // Draw the demo application.
             egui::TopBottomPanel::top("menubar_container").show(egui_ctx, |ui| {
                 egui::menu::bar(ui, |ui| {
-                    self.gui
-                        .ui(egui_ctx, ui, cpu, io, disassembler, breakpoints, watchpoints);
+                    self.gui.ui(
+                        egui_ctx,
+                        ui,
+                        cpu,
+                        io,
+                        disassembler,
+                        breakpoints,
+                        watchpoints,
+                    );
                     io.video.ui(egui_ctx, ui, &mut self.texture_handle);
                     io.fdc.ui(egui_ctx, ui);
                 });

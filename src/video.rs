@@ -482,7 +482,12 @@ impl Video {
         (self.cycles as f64 / cyc_per_line) as u16
     }
 
-    pub fn ui(&mut self, ctx: &Context, ui: &mut egui::Ui, tex_handle: &mut Option<egui::TextureHandle>) {
+    pub fn ui(
+        &mut self,
+        ctx: &Context,
+        ui: &mut egui::Ui,
+        tex_handle: &mut Option<egui::TextureHandle>,
+    ) {
         ui.menu_button("Video", |ui| {
             if ui.button("Palettes").clicked() {
                 self.palettes_open = true;
@@ -505,30 +510,28 @@ impl Video {
         egui::Window::new("Palettes")
             .open(&mut self.palettes_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle =
-                    tex_handle.insert(ui.ctx().load_texture(
-                        "palettes",
-                        egui::ColorImage::from_rgba_unmultiplied(
-                            [8 * PAL_SQUARE_PX, 2 * PAL_SQUARE_PX],
-                            &self.palettes_canvas,
-                        ),
-                        Default::default(),
-                    ));
+                let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
+                    "palettes",
+                    egui::ColorImage::from_rgba_unmultiplied(
+                        [8 * PAL_SQUARE_PX, 2 * PAL_SQUARE_PX],
+                        &self.palettes_canvas,
+                    ),
+                    Default::default(),
+                ));
                 ui.image(texture, texture.size_vec2());
             });
 
         egui::Window::new("Bitmap 0")
             .open(&mut self.bitmap0_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle =
-                    tex_handle.insert(ui.ctx().load_texture(
-                        "bitmap0",
-                        egui::ColorImage::from_rgba_unmultiplied(
-                            [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
-                            &self.bitmap0_canvas,
-                        ),
-                        Default::default(),
-                    ));
+                let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
+                    "bitmap0",
+                    egui::ColorImage::from_rgba_unmultiplied(
+                        [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
+                        &self.bitmap0_canvas,
+                    ),
+                    Default::default(),
+                ));
                 ui.image(texture, texture.size_vec2());
                 ui.label(format!(
                     "Bitmap 0 src: ${:04x}",
@@ -542,24 +545,22 @@ impl Video {
         egui::Window::new("PCG ROM Viewer")
             .open(&mut self.pcgrom_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle =
-                    tex_handle.insert(ui.ctx().load_texture(
-                        "pcgrom",
-                        egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgrom_canvas),
-                        Default::default(),
-                    ));
+                let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
+                    "pcgrom",
+                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgrom_canvas),
+                    Default::default(),
+                ));
                 ui.image(texture, texture.size_vec2());
             });
 
         egui::Window::new("PCG RAM Viewer")
             .open(&mut self.pcgram_open)
             .show(ctx, |ui| {
-                let texture: &egui::TextureHandle =
-                    tex_handle.insert(ui.ctx().load_texture(
-                        "pcgram",
-                        egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgram_canvas),
-                        Default::default(),
-                    ));
+                let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
+                    "pcgram",
+                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &self.pcgram_canvas),
+                    Default::default(),
+                ));
                 ui.image(texture, texture.size_vec2());
             });
     }
