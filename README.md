@@ -7,7 +7,7 @@ WIP Sharp X1 emulator
 - [x] save files
 - [ ] throttle
 - [ ] larger vram viewers
-- [ ] load rom/floppy/cassette from filesystem
+- [x] load rom/floppy/cassette from filesystem
 - [ ] timer
 - [ ] debugfiles
 - [ ] cassette (tap)

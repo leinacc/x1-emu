@@ -2,7 +2,7 @@ use egui::Context;
 
 #[derive(Savefile)]
 pub struct FDC {
-    loaded: bool,
+    is_loaded: bool,
     pub sector: u8,
     side1: bool,
     floppy_bay_select: u8,
@@ -16,9 +16,9 @@ pub struct FDC {
 }
 
 impl FDC {
-    pub fn new(disk_data: Vec<u8>, loaded: bool) -> Self {
+    pub fn new(disk_data: Vec<u8>) -> Self {
         Self {
-            loaded: loaded,
+            is_loaded: true,
             sector: 0,
             side1: false,
             floppy_bay_select: 0,
@@ -26,6 +26,22 @@ impl FDC {
             data: 0,
             reading: false,
             disk_data: disk_data,
+            track: 0,
+
+            status_open: false,
+        }
+    }
+
+    pub fn none() -> Self {
+        Self {
+            is_loaded: false,
+            sector: 0,
+            side1: false,
+            floppy_bay_select: 0,
+            offs_in_sector: 0,
+            data: 0,
+            reading: false,
+            disk_data: vec![],
             track: 0,
 
             status_open: false,
@@ -50,7 +66,8 @@ impl FDC {
                     + (if self.side1 { 0x10 } else { 0 })
                     + (self.track as usize) * 0x20;
                 if side_effects {
-                    self.data = self.disk_data[sector * 0x100 + self.offs_in_sector as usize - 0x100];
+                    self.data =
+                        self.disk_data[sector * 0x100 + self.offs_in_sector as usize - 0x100];
                     self.offs_in_sector += 1;
                 }
                 ret |= 1;
@@ -86,7 +103,7 @@ impl FDC {
     }
 
     pub fn get_sector(&self) -> u8 {
-        if self.loaded {
+        if self.is_loaded {
             self.sector
         } else {
             0

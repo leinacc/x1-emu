@@ -84,7 +84,7 @@ pub struct IO {
 }
 
 impl IO {
-    fn new(ipl: Vec<u8>, fnt: Vec<u8>, floppy_data: Vec<u8>, cart_rom: Vec<u8>) -> Self {
+    fn new(ipl: Vec<u8>, fnt: Vec<u8>) -> Self {
         let mut io = Self {
             mem: [0; 0x10000],
             ipl_loaded: true,
@@ -95,8 +95,8 @@ impl IO {
                 fnt,
             ),
             i8255: I8255::new(),
-            fdc: FDC::new(floppy_data, false),
-            cart: Cart::new(cart_rom),
+            fdc: FDC::none(),
+            cart: Cart::none(),
             rtc: RTC::new(),
             sub_cmd: 0,
             sub_cmd_len: 0,
@@ -105,10 +105,10 @@ impl IO {
             key_i: 0,
             sub_val_ptr: 0,
             key_irq_vector: 0,
-    
+
             keyboard: Keyboard::new(),
             last_key_press: 0,
-    
+
             last_addr: 0xffff,
             last_is_mem: true,
             last_is_read: true,
@@ -434,12 +434,8 @@ fn get_new_io() -> IO {
     let ipl = get_file_as_byte_vec(&String::from("res/ipl.x1"));
     // let ank = get_file_as_byte_vec(&String::from("res/ank.fnt")); // 8x16
     let fnt = get_file_as_byte_vec(&String::from("res/fnt0808.x1")); // 8x8
-    let cart_rom = get_file_as_byte_vec(&String::from("res/spaceBurger.bin"));
-    // let cart_rom = vec![0];
-    // let floppy_data = get_file_as_byte_vec(&String::from("res/cz8cb01.2d"));
-    let floppy_data = vec![0];
 
-    IO::new(ipl, fnt, floppy_data, cart_rom)
+    IO::new(ipl, fnt)
 }
 
 fn main() -> Result<(), Error> {
@@ -559,7 +555,10 @@ fn main() -> Result<(), Error> {
                 system.backup_cpu.step(&mut system.io);
 
                 system.io.paused = watchpoints.check(
-                    system.io.last_addr, system.io.last_is_read, system.io.last_is_mem);
+                    system.io.last_addr,
+                    system.io.last_is_read,
+                    system.io.last_is_mem,
+                );
                 if system.io.paused {
                     system.backup_cpu = system.cpu.clone();
                     system.backup_cpu.side_effects = false;
@@ -594,7 +593,10 @@ fn main() -> Result<(), Error> {
                 }
             }
 
-            system.io.video.display(pixels.frame_mut(), &mut vram_viewers);
+            system
+                .io
+                .video
+                .display(pixels.frame_mut(), &mut vram_viewers);
             window.request_redraw();
         }
 

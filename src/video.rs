@@ -92,7 +92,6 @@ pub struct Video {
     bitmap0_open: bool,
     pcgrom_open: bool,
     pcgram_open: bool,
-    
 }
 
 pub struct VramViewers {
@@ -314,7 +313,14 @@ impl Video {
         pri_mask_calc
     }
 
-    fn draw_gfxbitmap(&mut self, canvas: &mut [u8], xsize: u8, ysize: u8, pri: u8, vram_viewers: &mut VramViewers) {
+    fn draw_gfxbitmap(
+        &mut self,
+        canvas: &mut [u8],
+        xsize: u8,
+        ysize: u8,
+        pri: u8,
+        vram_viewers: &mut VramViewers,
+    ) {
         // bitmap
         for row in 0..ysize {
             for col in 0..xsize {
@@ -559,7 +565,10 @@ impl Video {
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
                     "pcgrom",
-                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &vram_viewers.pcgrom_canvas),
+                    egui::ColorImage::from_rgba_unmultiplied(
+                        [128, 128],
+                        &vram_viewers.pcgrom_canvas,
+                    ),
                     Default::default(),
                 ));
                 ui.image(texture, texture.size_vec2());
@@ -570,7 +579,10 @@ impl Video {
             .show(ctx, |ui| {
                 let texture: &egui::TextureHandle = tex_handle.insert(ui.ctx().load_texture(
                     "pcgram",
-                    egui::ColorImage::from_rgba_unmultiplied([128, 128], &vram_viewers.pcgram_canvas),
+                    egui::ColorImage::from_rgba_unmultiplied(
+                        [128, 128],
+                        &vram_viewers.pcgram_canvas,
+                    ),
                     Default::default(),
                 ));
                 ui.image(texture, texture.size_vec2());

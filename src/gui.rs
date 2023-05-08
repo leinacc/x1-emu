@@ -1,6 +1,6 @@
-use crate::{breakpoints::Breakpoints, video::VramViewers};
 use crate::disassembler::Disassembler;
 use crate::watchpoints::Watchpoints;
+use crate::{breakpoints::Breakpoints, video::VramViewers};
 use egui::{ClippedPrimitive, Context, TextureHandle, TexturesDelta};
 use egui_memory_editor::MemoryEditor;
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
@@ -106,18 +106,15 @@ impl Framework {
             // Draw the demo application.
             egui::TopBottomPanel::top("menubar_container").show(egui_ctx, |ui| {
                 egui::menu::bar(ui, |ui| {
-                    self.gui.ui(
-                        egui_ctx,
-                        ui,
-                        system,
-                        disassembler,
-                        breakpoints,
-                        watchpoints,
-                    );
+                    self.gui
+                        .ui(egui_ctx, ui, system, disassembler, breakpoints, watchpoints);
                     let palettes = system.io.video.palettes;
                     vram_viewers.draw_pcgram(palettes, system.io.video.pcg_ram);
                     vram_viewers.draw_palettes(palettes);
-                    system.io.video.ui(egui_ctx, ui, &mut self.texture_handle, vram_viewers);
+                    system
+                        .io
+                        .video
+                        .ui(egui_ctx, ui, &mut self.texture_handle, vram_viewers);
                     system.io.fdc.ui(egui_ctx, ui);
                 });
             });
@@ -298,6 +295,26 @@ impl Gui {
                 }
                 if ui.button("Load state").clicked() {
                     system.load_state_clicked = true;
+                }
+                if ui.button("Select rom").clicked() {
+                    let res = tinyfiledialogs::open_file_dialog("Select rom", "./", None);
+                    match res {
+                        None => (),
+                        Some(fname) => {
+                            let file_bytes = crate::get_file_as_byte_vec(&fname);
+                            system.io.cart = crate::Cart::new(file_bytes);
+                        }
+                    }
+                }
+                if ui.button("Select floppy").clicked() {
+                    let res = tinyfiledialogs::open_file_dialog("Select floppy", "./", None);
+                    match res {
+                        None => (),
+                        Some(fname) => {
+                            let file_bytes = crate::get_file_as_byte_vec(&fname);
+                            system.io.fdc = crate::FDC::new(file_bytes);
+                        }
+                    }
                 }
             });
     }

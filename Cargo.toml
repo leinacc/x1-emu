@@ -18,6 +18,7 @@ egui-wgpu = "0.21.0"
 egui-winit = "0.21.0"
 savefile="0.13"
 savefile-derive="0.13"
+tinyfiledialogs = "3.9.1"
 
 [patch.crates-io]
 pixels = { git = 'https://github.com/parasyte/pixels.git' }

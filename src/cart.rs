@@ -2,6 +2,7 @@
 pub struct Cart {
     address: u32,
     rom: Vec<u8>,
+    is_loaded: bool,
 }
 
 impl Cart {
@@ -9,6 +10,15 @@ impl Cart {
         Cart {
             address: 0,
             rom: rom,
+            is_loaded: true,
+        }
+    }
+
+    pub fn none() -> Self {
+        Cart {
+            address: 0,
+            rom: vec![],
+            is_loaded: false,
         }
     }
 
@@ -25,6 +35,10 @@ impl Cart {
     }
 
     pub fn read_byte(&self) -> u8 {
-        self.rom[self.address as usize]
+        if self.is_loaded {
+            self.rom[self.address as usize]
+        } else {
+            0xff
+        }
     }
 }
